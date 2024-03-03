@@ -28,6 +28,8 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list sleep_list; //슬립리스트
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -79,6 +81,16 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
+static bool
+wakeup_tick_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->wakeup_tick < b->wakeup_tick;
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -108,6 +120,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -290,6 +303,35 @@ thread_exit (void) {
 	intr_disable ();
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
+}
+
+void
+thread_sleep (int64_t wakeup_tick) {
+	struct thread *curr = thread_current ();
+	enum intr_level old_level;
+
+	ASSERT (!intr_context ());
+
+	old_level = intr_disable ();
+	curr->wakeup_tick = wakeup_tick;
+	curr->status = THREAD_BLOCKED;
+	if (curr != idle_thread)
+		list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less, NULL);
+	// do_schedule (THREAD_BLOCKED);
+	schedule();
+	intr_set_level (old_level);
+}
+
+void thread_wakeup(int64_t cur_tick) {
+	if(list_empty(&sleep_list))
+		return;
+	struct thread *wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
+	if(wakeup_first_thread->wakeup_tick <= cur_tick){
+		enum intr_level old_level = intr_disable ();
+		wakeup_first_thread->status = THREAD_READY;
+		list_push_back (&ready_list, list_pop_front (&sleep_list));
+		intr_set_level (old_level);
+	}
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
