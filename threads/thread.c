@@ -83,16 +83,6 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
-static bool
-wakeup_tick_less (const struct list_elem *a_, const struct list_elem *b_,
-            void *aux UNUSED) 
-{
-  const struct thread *a = list_entry (a_, struct thread, elem);
-  const struct thread *b = list_entry (b_, struct thread, elem);
-  
-  return a->wakeup_tick < b->wakeup_tick;
-}
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -133,6 +123,29 @@ thread_init (void) {
 
 	first_wakeup_tick = MAX_WAKEUP_TICK;
 }
+
+static bool
+wakeup_tick_less_and_high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  if(a->wakeup_tick == b->wakeup_tick)
+	return a->priority > b->priority;
+  return a->wakeup_tick < b->wakeup_tick;
+}
+
+/* 높은 우선순위는 낮은 우선순위 값을 가진다.*/
+static bool
+high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->priority > b->priority;
+}
+
 
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
@@ -257,7 +270,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, high_priority_first, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -330,7 +343,7 @@ thread_sleep (int64_t wakeup_tick) {
 	if (first_wakeup_tick > wakeup_tick)
 		first_wakeup_tick = wakeup_tick;
 	if (curr != idle_thread)
-		list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less, NULL);
+		list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less_and_high_priority_first, NULL);
 	schedule();
 	intr_set_level (old_level);
 }
@@ -342,7 +355,7 @@ void thread_wakeup(int64_t cur_tick) {
 	while (wakeup_first_thread->wakeup_tick <= cur_tick) {
 		enum intr_level old_level = intr_disable ();
 		wakeup_first_thread->status = THREAD_READY;
-		list_push_back (&ready_list, list_pop_front (&sleep_list));
+		list_insert_ordered(&ready_list, list_pop_front (&sleep_list), high_priority_first, NULL);
 		wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
 		intr_set_level (old_level);
 	}
@@ -363,7 +376,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, high_priority_first, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
