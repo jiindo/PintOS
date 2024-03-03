@@ -312,12 +312,14 @@ thread_sleep (int64_t wakeup_tick) {
 
 	ASSERT (!intr_context ());
 
+	if (curr == idle_thread)
+		return;
+
 	old_level = intr_disable ();
 	curr->wakeup_tick = wakeup_tick;
 	curr->status = THREAD_BLOCKED;
 	if (curr != idle_thread)
 		list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less, NULL);
-	// do_schedule (THREAD_BLOCKED);
 	schedule();
 	intr_set_level (old_level);
 }
@@ -326,10 +328,11 @@ void thread_wakeup(int64_t cur_tick) {
 	if(list_empty(&sleep_list))
 		return;
 	struct thread *wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
-	if(wakeup_first_thread->wakeup_tick <= cur_tick){
+	while(wakeup_first_thread->wakeup_tick <= cur_tick) {
 		enum intr_level old_level = intr_disable ();
 		wakeup_first_thread->status = THREAD_READY;
 		list_push_back (&ready_list, list_pop_front (&sleep_list));
+		wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
 		intr_set_level (old_level);
 	}
 }

@@ -95,8 +95,6 @@ timer_sleep (int64_t ticks) {
 	ASSERT (intr_get_level () == INTR_ON);
 	if (timer_elapsed (start) < ticks)
 		thread_sleep (start + ticks);
-	
-	
 }
 
 /* Suspends execution for approximately MS milliseconds. */
