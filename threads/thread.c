@@ -24,6 +24,7 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
+#define MAX_WAKEUP_TICK 4200000000
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -43,9 +44,10 @@ static struct lock tid_lock;
 static struct list destruction_req;
 
 /* Statistics. */
-static long long idle_ticks;    /* # of timer ticks spent idle. */
-static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
-static long long user_ticks;    /* # of timer ticks in user programs. */
+static long long idle_ticks;    	/* # of timer ticks spent idle. */
+static long long kernel_ticks;  	/* # of timer ticks in kernel threads. */
+static long long user_ticks;    	/* # of timer ticks in user programs. */
+static long long first_wakeup_tick;	/* minimum wakeup tick */ 
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -128,6 +130,8 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+
+	first_wakeup_tick = MAX_WAKEUP_TICK;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -305,6 +309,11 @@ thread_exit (void) {
 	NOT_REACHED ();
 }
 
+bool
+thread_can_wakeup (int64_t curr_tick) {
+	return curr_tick >= first_wakeup_tick;
+}
+
 void
 thread_sleep (int64_t wakeup_tick) {
 	struct thread *curr = thread_current ();
@@ -318,6 +327,8 @@ thread_sleep (int64_t wakeup_tick) {
 	old_level = intr_disable ();
 	curr->wakeup_tick = wakeup_tick;
 	curr->status = THREAD_BLOCKED;
+	if (first_wakeup_tick > wakeup_tick)
+		first_wakeup_tick = wakeup_tick;
 	if (curr != idle_thread)
 		list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less, NULL);
 	schedule();
@@ -325,16 +336,20 @@ thread_sleep (int64_t wakeup_tick) {
 }
 
 void thread_wakeup(int64_t cur_tick) {
-	if(list_empty(&sleep_list))
+	if (list_empty(&sleep_list))
 		return;
 	struct thread *wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
-	while(wakeup_first_thread->wakeup_tick <= cur_tick) {
+	while (wakeup_first_thread->wakeup_tick <= cur_tick) {
 		enum intr_level old_level = intr_disable ();
 		wakeup_first_thread->status = THREAD_READY;
 		list_push_back (&ready_list, list_pop_front (&sleep_list));
 		wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
 		intr_set_level (old_level);
 	}
+	if (list_empty(&sleep_list))
+		first_wakeup_tick = MAX_WAKEUP_TICK;
+	else
+		first_wakeup_tick = wakeup_first_thread->wakeup_tick;
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
