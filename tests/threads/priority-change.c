@@ -1,6 +1,9 @@
 /* Verifies that lowering a thread's priority so that it is no
    longer the highest-priority thread in the system causes it to
    yield immediately. */
+/* 스레드의 우선 순위를 낮추면 
+더 이상 시스템에서 가장 우선 순위가 높은 스레드가 되지 않도록 
+스레드가 즉시 산출되는지 확인합니다. */
 
 #include <stdio.h>
 #include "tests/threads/tests.h"

@@ -1,6 +1,8 @@
 /* Tests that the highest-priority thread waiting on a semaphore
    is the first to wake up. */
 
+/* 가장 우선순위가 높은 스레드가 세마포어에서 가장 먼저 깨어나는 것을 테스트합니다. */
+
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

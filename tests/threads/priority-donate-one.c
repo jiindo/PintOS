@@ -9,6 +9,19 @@
    Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
    <yph@cs.stanford.edu>.  Modified by arens. */
 
+   /* 메인 스레드는 lock을 획득합니다.
+   그런 다음 lock을 획득하는 것을 차단하는
+   더 높은 우선 순위의 스레드 두 개를 생성하여
+   메인 스레드에 우선 순위를 기부하게 합니다.
+   메인 스레드가 lock을 해제하면 다른 스레드가
+  우선 순위대로 lock을 획득해야 합니다.
+
+    1999년 겨울, 매트 프랭클린(Matt Franklin<startled@leland.stanford.edu >,
+    그렉 허친스(Greg Hutchins<gmh@leland.stanford.edu >),
+    위핑후(Yu Ping Hu<yph@cs.stanford.edu >)가
+    스탠포드(Stanford)사의 CS 140을 위해 제출한 테스트를 기반으로 합니다
+     아렌스(Arens)가 수정했습니다. */
+
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

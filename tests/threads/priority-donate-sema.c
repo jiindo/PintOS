@@ -10,6 +10,16 @@
 
    Written by Godmar Back <gback@cs.vt.edu>. */
 
+/* 낮은 우선 순위의 스레드 L은 잠금을 획득한 다음, 세마포어 다운을 차단합니다.
+중간 우선 순위의 스레드 M은 동일한 세마포어에서 대기하는 것을 차단합니다.
+다음, 높은 우선 순위의 스레드 H는 잠금을 획득하려고 시도하고, 우선 순위를 L에게 기부합니다.
+
+다음으로, 메인 스레드가 세마포어 위에 올라가 L을 깨웁니다.
+잠금을 해제하고 H를 깨웁니다.
+H는 세마포어를 "업"하고, M을 깨웁니다.
+H가 종료되고 M이 종료되고 L이 종료되며 마지막으로 메인 스레드가 종료됩니다.
+
+Godmar Back <gback@cs.vt.edu > 지음. */
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

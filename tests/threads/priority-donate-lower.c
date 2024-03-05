@@ -4,6 +4,12 @@
    thread attempts to lower its priority, which should not take
    effect until the donation is released. */
 
+/* 메인 스레드는 잠금을 획득합니다.
+ 그런 다음 잠금을 획득하는 것을 차단하는 더 높은 우선 순위의 스레드를 생성하여 
+ 메인 스레드가 자신의 우선 순위를 메인 스레드에 기부하게 합니다. 
+ 메인 스레드는 우선 순위를 낮추려고 시도하는데, 
+ 이는 기부가 해제될 때까지 효력이 발생하지 않아야 합니다. */
+ 
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"
