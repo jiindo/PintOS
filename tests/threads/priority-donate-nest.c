@@ -9,6 +9,16 @@
    Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
    <yph@cs.stanford.edu>.  Modified by arens. */
 
+/* 우선 순위가 낮은 메인 스레드 L은 잠금 A를 획득합니다.
+중간 우선 순위 스레드 M은 잠금 B를 획득한 다음 잠금 A를 획득할 때 블록을 생성합니다.
+우선 순위가 높은 스레드 H는 잠금 B를 획득할 때 블록을 생성합니다.
+따라서 스레드 H는 우선 순위를 M에 할당하고, 이는 다시 스레드 L에 할당합니다.
+
+Stanford의 CS 140을 위해 원래 제출된 테스트를 기반으로 합니다
+Matt Franklin <startled@leland.stanford.edu >의 1999년 겨울,
+Greg Hutchins <gmh@leland.stanford.edu >, Yu Ping Hu
+<yph@cs.stanford.edu >. 렌에 의해 수정되었습니다. */
+
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

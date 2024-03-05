@@ -9,6 +9,18 @@
    Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
    <yph@cs.stanford.edu>.  Modified by arens. */
 
+/* 메인 스레드는 잠금 A와 B를 획득한 다음, 
+더 높은 우선 순위의 두 개의 스레드를 생성합니다.
+이 스레드들은 각각 잠금 중 하나를 획득하는 것을 차단하고, 
+따라서 그 우선 순위를 메인 스레드에 기부합니다. 
+메인 스레드는 잠금을 차례로 해제하고, 기부된 우선 순위를 포기합니다.
+
+1999년 겨울, 매트 프랭클린(Matt Franklin<startled@leland.stanford.edu >,
+그렉 허친스(Greg Hutchins<gmh@leland.stanford.edu >),
+위핑후(Yu Ping Hu<yph@cs.stanford.edu >)가 
+스탠포드 CS 140을 위해 제출한 테스트를 기반으로 합니다. 
+아렌스(Arens)가 수정했습니다. */
+
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

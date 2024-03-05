@@ -1,6 +1,9 @@
 /* Tests that cond_signal() wakes up the highest-priority thread
    waiting in cond_wait(). */
 
+/* cond_signal()이 cond_wait()에서 대기 중인 
+가장 높은 우선 순위 스레드를 웨이크업하는 테스트를 수행합니다. */
+
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

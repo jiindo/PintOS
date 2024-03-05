@@ -7,6 +7,14 @@
    <gmh@leland.stanford.edu>, Yu Ping Hu <yph@cs.stanford.edu>.
    Modified by arens. */
 
+/* 동일한 우선 순위로 여러 스레드를 생성하고 
+동일한 라운드 로빈 순서로 일관되게 실행되도록 합니다.
+
+원래 스탠퍼드의 CS 140을 위해 제출된 테스트를 기반으로 합니다
+맷 프랭클린의 1999년 겨울
+<startled@leland.stanford.edu >, 그렉 허친스
+<gmh@leland.stanford.edu >, 위핑후 <yph@cs.stanford.edu >.
+렌에 의해 수정되었습니다. */
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"

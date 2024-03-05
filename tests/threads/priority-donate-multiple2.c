@@ -1,18 +1,30 @@
 /* The main thread acquires locks A and B, then it creates three
-   higher-priority threads.  The first two of these threads block
-   acquiring one of the locks and thus donate their priority to
-   the main thread.  The main thread releases the locks in turn
-   and relinquishes its donated priorities, allowing the third thread
-   to run.
+higher-priority threads.  The first two of these threads block
+acquiring one of the locks and thus donate their priority to
+the main thread.  The main thread releases the locks in turn
+and relinquishes its donated priorities, allowing the third thread
+to run.
 
-   In this test, the main thread releases the locks in a different
-   order compared to priority-donate-multiple.c.
-   
-   Written by Godmar Back <gback@cs.vt.edu>. 
-   Based on a test originally submitted for Stanford's CS 140 in
-   winter 1999 by Matt Franklin <startled@leland.stanford.edu>,
-   Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
-   <yph@cs.stanford.edu>.  Modified by arens. */
+In this test, the main thread releases the locks in a different
+order compared to priority-donate-multiple.c.
+
+Written by Godmar Back <gback@cs.vt.edu>. 
+Based on a test originally submitted for Stanford's CS 140 in
+winter 1999 by Matt Franklin <startled@leland.stanford.edu>,
+Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
+<yph@cs.stanford.edu>.  Modified by arens. */
+
+/* 메인 스레드는 잠금 A와 B를 획득한 다음, 우선 순위가 높은 세 개의 스레드를 생성합니다.
+ 이 중 처음 두 개의 스레드는 잠금 중 하나를 획득하는 것을 차단하여 우선 순위를 메인 스레드에 기부합니다. 
+ 메인 스레드는 잠금을 차례로 해제하고 기부된 우선 순위를 포기하여 세 번째 스레드를 실행할 수 있습니다.
+
+이 테스트에서 메인 스레드는 priority-donate-multiple.c와 다른 순서로 잠금을 해제합니다.
+
+Godmar Back <gback@cs.vt.edu > 지음.
+Stanford의 CS 140을 위해 원래 제출된 테스트를 기반으로 합니다
+Matt Franklin <startled@leland.stanford.edu >의 1999년 겨울,
+Greg Hutchins <gmh@leland.stanford.edu >, Yu Ping Hu
+<yph@cs.stanford.edu >. 렌에 의해 수정되었습니다. */
 
 #include <stdio.h>
 #include "tests/threads/tests.h"
