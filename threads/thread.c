@@ -357,6 +357,7 @@ void thread_wakeup(int64_t cur_tick) {
 		return;
 	struct thread *wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
 	while (wakeup_first_thread->wakeup_tick <= cur_tick) {
+	while (wakeup_first_thread->wakeup_tick <= cur_tick && !list_empty(&sleep_list)) {
 		enum intr_level old_level = intr_disable ();
 		wakeup_first_thread->status = THREAD_READY;
 		list_insert_ordered(&ready_list, list_pop_front (&sleep_list), high_priority_first, NULL);
