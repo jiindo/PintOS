@@ -135,18 +135,6 @@ wakeup_tick_less_and_high_priority_first (const struct list_elem *a_, const stru
   return a->wakeup_tick < b->wakeup_tick;
 }
 
-/* 높은 우선순위는 낮은 우선순위 값을 가진다.*/
-static bool
-high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
-            void *aux UNUSED) 
-{
-  const struct thread *a = list_entry (a_, struct thread, elem);
-  const struct thread *b = list_entry (b_, struct thread, elem);
-  
-  return a->priority > b->priority;
-}
-
-
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
@@ -234,9 +222,23 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	// 락이 있을 때
+	// TODO: 내가 락을 갖고 있고, 지금 들어온 쓰레드도 락이 필요하면, 우선순위를 들어온 쓰레드것으로 바꿔준다.
+	// ISSUE: Kernel panic in run: PANIC at ../../threads/thread.c:638 in schedule(): assertion `is_thread (next)' failed.
+	// if (aux != NULL) {
+	// 	struct lock *priority_lock;
+	// 	priority_lock = (struct lock *) aux;
+	// 	if (!sema_try_down(&priority_lock->semaphore) && thread_get_priority() < priority)
+	// 		thread_current() -> priority = priority;
+	// 	return tid;
+	// }
+
+	// 락이 없을 때
 	/* Add to run queue. */
 	thread_unblock (t);
-
+	if (thread_current() -> priority < priority) {
+		thread_yield();	
+	}
 	return tid;
 }
 
@@ -385,6 +387,11 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+
+	struct thread *high_priority_thread = list_entry(list_begin(&ready_list), struct thread, elem);
+	if (high_priority_thread->priority > new_priority) {
+		thread_yield();
+	}
 }
 
 /* Returns the current thread's priority. */
@@ -418,6 +425,17 @@ int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
 	return 0;
+}
+
+/* 높은 우선순위는 낮은 우선순위 값을 가진다.*/
+bool
+high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->priority > b->priority;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
