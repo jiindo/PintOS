@@ -91,8 +91,12 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	// int prev_priority;                  /* donate 되기 전 Priority. */
 	int64_t wakeup_tick;				/* 스레드가 깨어날 시각 (tick) */
-
+	// void **wait_on_lock;			    /* 보유한 lock의 주소 */
+	struct list donors;					/* 우선순위를 기부한 쓰레드들 */
+	struct list_elem donor_elem;        /* 기부 쓰레드 목록에 들어갈 원소 */
+	
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
@@ -137,6 +141,7 @@ void thread_sleep (int64_t wakeup_tick);
 void thread_wakeup(int64_t wakeup_tick);
 
 int thread_get_priority (void);
+int thread_get_highest_priority_in_donors (void);
 void thread_set_priority (int);
 
 int thread_get_nice (void);

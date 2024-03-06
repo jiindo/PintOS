@@ -221,9 +221,10 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
-
+	lock->holder->priority = thread_get_highest_priority_in_donors(); 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
+	thread_yield();
 }
 
 /* Returns true if the current thread holds LOCK, false
