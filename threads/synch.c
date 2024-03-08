@@ -209,7 +209,6 @@ lock_acquire (struct lock *lock) {
 			if (prev_lock->holder->priority < current_priority) {
 				prev_lock->holder->priority = current_priority;
 				holder = prev_lock->holder;
-				list_push_back(&holder->donors, &thread_current() -> donor_elem);
 			}
 		 	else
 				break;
