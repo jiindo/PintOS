@@ -192,7 +192,7 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 	// 락을 얻지 못하는 상황
-	if (lock->holder != NULL) {
+	if (lock->semaphore.value == 0) {
 		// 현재 쓰레드가 기다리는 락의 주소를 저장
 		thread_current() -> wait_on_lock = lock;
 		// 락을 보유한 쓰레드가 나보다 우선순위가 낮으면 현재 실행 쓰레드의 우선순위를 기부해야한다.
