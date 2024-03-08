@@ -67,6 +67,7 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+bool high_priority_first (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -444,6 +445,17 @@ high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
 {
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->priority > b->priority;
+}
+
+/* (기부목록 기준)우선순위 내림차순 .*/
+bool
+high_priority_first_for_donor (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, donor_elem);
+  const struct thread *b = list_entry (b_, struct thread, donor_elem);
   
   return a->priority > b->priority;
 }

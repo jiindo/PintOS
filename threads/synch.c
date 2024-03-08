@@ -33,7 +33,6 @@
 #include "threads/thread.h"
 
 void list_remove_donor (struct list *list, struct lock *lock);
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -111,10 +110,14 @@ sema_up (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
+	if (!list_empty (&sema->waiters)) {
+		list_sort(&sema->waiters, high_priority_first, NULL);
 		thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
+	}
 	sema->value++;
 	intr_set_level (old_level);
+	// 락 해제후 기부 목록 중 가장 높은 우선순위로 변경
+	thread_set_priority(thread_get_highest_priority_in(&thread_current()-> donors));
 }
 
 static void sema_test_helper (void *sema_);
@@ -189,7 +192,7 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 	// 락을 얻지 못하는 상황
-	if (lock->semaphore.value == 0) {
+	if (lock->holder != NULL) {
 		// 현재 쓰레드가 기다리는 락의 주소를 저장
 		thread_current() -> wait_on_lock = lock;
 		// 락을 보유한 쓰레드가 나보다 우선순위가 낮으면 현재 실행 쓰레드의 우선순위를 기부해야한다.
@@ -197,7 +200,7 @@ lock_acquire (struct lock *lock) {
 		int current_priority = thread_get_priority();
 		// multiple-donation
 		if (holder->prev_priority < current_priority) {
-			list_push_back(&(holder->donors), &(thread_current() -> donor_elem));
+			list_insert_ordered(&(holder->donors), &(thread_current() -> donor_elem), high_priority_first_for_donor, NULL);
 			if (holder->priority < current_priority)
 				holder->priority = current_priority;
 		}
@@ -249,13 +252,11 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 	// 우선순위를 기부 받았다면, 기부목록(donors)에서 제거한다.
-	if (!list_empty(&(lock->holder->donors)))
-		list_remove_donor(&(lock->holder->donors), lock);
 	struct list *donors = &(lock->holder->donors);
+	if (!list_empty(donors))
+		list_remove_donor(donors, lock);
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
-	// 락 해제후 기부 목록 중 가장 높은 우선순위로 변경
-	thread_set_priority(thread_get_highest_priority_in(donors));
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -354,6 +355,13 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 		cond_signal (cond, lock);
 }
 
+/**
+ * @brief 기부목록에서 특정 락을 기다리고 특정 우선순위를 가지는 쓰레드를 제거한다.
+ * 우선순위가 없다면 하나의 락을 기다리는 여러 쓰레드를 구분할 수 없었다.
+ * @param list 
+ * @param lock 
+ * @param priority 
+ */
 void 
 list_remove_donor (struct list *list, struct lock *lock) {
 	struct list_elem *e;
