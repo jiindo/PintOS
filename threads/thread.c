@@ -14,7 +14,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-
+#define KERNEL_CODE_HIDE
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -213,6 +213,7 @@ thread_create (const char *name, int priority,
 
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
+	#ifdef KERNEL_CODE_HIDE
 	t->tf.rip = (uintptr_t) kernel_thread;
 	t->tf.R.rdi = (uint64_t) function;
 	t->tf.R.rsi = (uint64_t) aux;
@@ -221,26 +222,13 @@ thread_create (const char *name, int priority,
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
+	#endif
 
 	/* Add to run queue. */
 	thread_unblock (t);
-
-	// 락이 있을 때
-	// TODO: 내가 락을 갖고 있고, 지금 들어온 쓰레드도 락이 필요하면, 우선순위를 들어온 쓰레드것으로 바꿔준다.
-	struct lock *new_thread_lock = (struct lock *) aux;
-	if (new_thread_lock != NULL && new_thread_lock->holder == thread_current()) {
-		if (thread_get_highest_priority_in_donors() >= priority) return tid;
-		list_insert_ordered(&thread_current() -> donors, &t->donor_elem, high_priority_first, NULL);
+	if (thread_get_highest_priority_in(&(thread_current() -> donors)) < priority) {
 		thread_yield();
-		return tid;
 	}
-
-	// 락이 없을 때
-	if (thread_get_highest_priority_in_donors() < priority) {
-		// 락을 대기하고 돌아올 수 있게끔 양보한다.
-		thread_yield();	
-	}
-
 	return tid;
 }
 
@@ -356,7 +344,6 @@ void thread_wakeup(int64_t cur_tick) {
 	if (list_empty(&sleep_list))
 		return;
 	struct thread *wakeup_first_thread = list_entry(list_begin(&sleep_list), struct thread, elem);
-	while (wakeup_first_thread->wakeup_tick <= cur_tick) {
 	while (wakeup_first_thread->wakeup_tick <= cur_tick && !list_empty(&sleep_list)) {
 		enum intr_level old_level = intr_disable ();
 		wakeup_first_thread->status = THREAD_READY;
@@ -400,17 +387,27 @@ thread_set_priority (int new_priority) {
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) {
-	return thread_current ()->priority;
+	return thread_current() -> priority;
 }
 
-/* Returns 우선순위 기부 쓰레드 중 가장 우선순위가 높은 값. */
+int thread_get_prev_priority (void) {
+	return thread_current() -> prev_priority;
+}
+
+/**
+ * @brief 기부목록 중 가장 높은 우선순위 반환. 만약 기부목록이 없으면 순수 우선순위(prev_priority) 반환.
+ * printf()시 오작동함
+ * @param donors 
+ * @return int 
+ */
 int
-thread_get_highest_priority_in_donors (void) {
-	if (list_empty(&thread_current() -> donors))
-		return thread_get_priority();
-	struct thread *high_priority_thread = list_entry(list_begin(&thread_current() -> donors), struct thread, donor_elem);
-	ASSERT (high_priority_thread->priority > thread_get_priority());
-	return high_priority_thread->priority;
+thread_get_highest_priority_in (struct list *donors) {
+	ASSERT (donors != NULL)
+	if (list_empty(donors)) {
+		return thread_get_prev_priority();
+	}
+	struct thread *donor_thread = list_entry(list_max(donors, high_priority_later, NULL), struct thread, donor_elem);
+	return donor_thread -> priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -440,7 +437,7 @@ thread_get_recent_cpu (void) {
 	return 0;
 }
 
-/* 높은 우선순위는 낮은 우선순위 값을 가진다.*/
+/* 우선순위 내림차순 .*/
 bool
 high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED) 
@@ -449,6 +446,17 @@ high_priority_first (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *b = list_entry (b_, struct thread, elem);
   
   return a->priority > b->priority;
+}
+
+/* 우선순위 오름차순 .*/
+bool
+high_priority_later (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->priority < b->priority;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -512,10 +520,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->prev_priority = priority;
 	t->magic = THREAD_MAGIC;
 
 	list_init(&t->donors);
-	list_insert_ordered(&t->donors, &t->donor_elem, high_priority_first, NULL);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

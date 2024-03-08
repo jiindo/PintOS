@@ -32,6 +32,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+void list_remove_donor (struct list *list, struct lock *lock);
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -110,8 +112,7 @@ sema_up (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
-					struct thread, elem));
+		thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
 	sema->value++;
 	intr_set_level (old_level);
 }
@@ -150,7 +151,7 @@ sema_test_helper (void *sema_) {
 		sema_up (&sema[1]);
 	}
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -187,9 +188,36 @@ lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
-
+	// 락을 얻지 못하는 상황
+	if (lock->semaphore.value == 0) {
+		// 현재 쓰레드가 기다리는 락의 주소를 저장
+		thread_current() -> wait_on_lock = lock;
+		// 락을 보유한 쓰레드가 나보다 우선순위가 낮으면 현재 실행 쓰레드의 우선순위를 기부해야한다.
+		struct thread *holder = lock->holder;
+		int current_priority = thread_get_priority();
+		// multiple-donation
+		if (holder->prev_priority < current_priority) {
+			list_push_back(&(holder->donors), &(thread_current() -> donor_elem));
+			if (holder->priority < current_priority)
+				holder->priority = current_priority;
+		}
+		// nested-lock
+		// 락이 중첩되어 있을 수도 있으므로, 락이 연결된 곳을 순회하여 현재 실행 쓰레드보다 낮은 우선순위를 가지면 기부한다.
+		while (holder != NULL && holder->wait_on_lock != NULL) {
+			struct lock *prev_lock = holder->wait_on_lock;
+			// 락 보유자들에게 우선순위를 기부한다 
+			if (prev_lock->holder->priority < current_priority) {
+				prev_lock->holder->priority = current_priority;
+				holder = prev_lock->holder;
+				list_push_back(&holder->donors, &thread_current() -> donor_elem);
+			}
+		 	else
+				break;
+		}
+	}
 	sema_down (&lock->semaphore);
 	lock->holder = thread_current ();
+	lock->holder->wait_on_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -221,10 +249,14 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
-	lock->holder->priority = thread_get_highest_priority_in_donors(); 
+	// 우선순위를 기부 받았다면, 기부목록(donors)에서 제거한다.
+	if (!list_empty(&(lock->holder->donors)))
+		list_remove_donor(&(lock->holder->donors), lock);
+	struct list *donors = &(lock->holder->donors);
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
-	thread_yield();
+	// 락 해제후 기부 목록 중 가장 높은 우선순위로 변경
+	thread_set_priority(thread_get_highest_priority_in(donors));
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -236,7 +268,7 @@ lock_held_by_current_thread (const struct lock *lock) {
 
 	return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem {
 	struct list_elem elem;              /* List element. */
@@ -321,4 +353,15 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 
 	while (!list_empty (&cond->waiters))
 		cond_signal (cond, lock);
+}
+
+void 
+list_remove_donor (struct list *list, struct lock *lock) {
+	struct list_elem *e;
+
+	for (e = list_begin (list); e != list_end (list); e = list_next (e)) {
+		struct thread *t = list_entry (e, struct thread, donor_elem);
+		if (t->wait_on_lock == lock)
+			list_remove(&t->donor_elem);
+	}
 }
