@@ -33,6 +33,7 @@
 #include "threads/thread.h"
 
 void list_remove_donor (struct list *list, struct lock *lock);
+bool high_priority_first_for_semaphore (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -318,7 +319,7 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	sema_init (&waiter.semaphore, 0);
-	list_push_back (&cond->waiters, &waiter.elem);
+	list_push_back(&cond->waiters, &waiter.elem);
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
 	lock_acquire (lock);
@@ -338,9 +339,10 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (!intr_context ());
 	ASSERT (lock_held_by_current_thread (lock));
 
-	if (!list_empty (&cond->waiters))
-		sema_up (&list_entry (list_pop_front (&cond->waiters),
-					struct semaphore_elem, elem)->semaphore);
+	if (!list_empty (&cond->waiters)) {
+		list_sort(&cond->waiters, high_priority_first_for_semaphore, NULL);
+		sema_up (&list_entry (list_pop_front (&cond->waiters), struct semaphore_elem, elem)->semaphore);
+	}
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -359,8 +361,8 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 }
 
 /**
- * @brief 기부목록에서 특정 락을 기다리고 특정 우선순위를 가지는 쓰레드를 제거한다.
- * 우선순위가 없다면 하나의 락을 기다리는 여러 쓰레드를 구분할 수 없었다.
+ * @brief 기부목록에서 특정 락을 기다리고 있었던 쓰레드를 제거한다.
+ * 
  * @param list 
  * @param lock 
  * @param priority 
@@ -374,4 +376,21 @@ list_remove_donor (struct list *list, struct lock *lock) {
 		if (t->wait_on_lock == lock)
 			list_remove(&t->donor_elem);
 	}
+}
+
+/* (세마포어) 우선순위 내림차순 .*/
+bool
+high_priority_first_for_semaphore (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{  
+	struct semaphore_elem *sema_elem_a = list_entry(a_, struct semaphore_elem, elem);
+	struct semaphore_elem *sema_elem_b = list_entry(b_, struct semaphore_elem, elem);
+
+	struct semaphore sema_a = sema_elem_a->semaphore;
+	struct semaphore sema_b = sema_elem_b->semaphore;
+
+	struct thread *t_a = list_entry(list_begin(&sema_a.waiters), struct thread, elem);
+	struct thread *t_b = list_entry(list_begin(&sema_b.waiters), struct thread, elem);
+
+  	return t_a->priority > t_b->priority;
 }
