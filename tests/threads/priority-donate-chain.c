@@ -133,4 +133,3 @@ interloper_thread_func (void *arg_ UNUSED)
   msg ("%s finished.", thread_name ());
 }
 
-// vim: sw=2

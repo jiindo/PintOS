@@ -199,15 +199,15 @@ lock_acquire (struct lock *lock) {
 		// 락을 보유한 쓰레드가 나보다 우선순위가 낮으면 현재 실행 쓰레드의 우선순위를 기부해야한다.
 		struct thread *holder = lock->holder;
 		int current_priority = thread_get_priority();
-		// multiple-donation
-		if (holder->prev_priority < current_priority) {
+		// multiple-donation || prev_priority 값이 priority보다 큰 경우가 있음(우선순위를 내렸을 때)
+		if (holder->prev_priority < current_priority || holder->priority < current_priority) {
 			list_insert_ordered(&(holder->donors), &(thread_current() -> donor_elem), high_priority_first_for_donor, NULL);
 			if (holder->priority < current_priority)
 				holder->priority = current_priority;
 		}
 		// nested-lock
 		// 락이 중첩되어 있을 수도 있으므로, 락이 연결된 곳을 순회하여 현재 실행 쓰레드보다 낮은 우선순위를 가지면 기부한다.
-		while (holder != NULL && holder->wait_on_lock != NULL) {
+		while (holder->wait_on_lock != NULL) {
 			struct lock *prev_lock = holder->wait_on_lock;
 			// 락 보유자들에게 우선순위를 기부한다 
 			if (prev_lock->holder->priority < current_priority) {
@@ -220,7 +220,8 @@ lock_acquire (struct lock *lock) {
 	}
 	sema_down (&lock->semaphore);
 	lock->holder = thread_current ();
-	lock->holder->wait_on_lock = NULL;
+	if (lock == lock->holder->wait_on_lock) 
+		lock->holder->wait_on_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

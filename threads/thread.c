@@ -373,14 +373,18 @@ thread_yield (void) {
 	intr_set_level (old_level);
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/**
+ * @brief 현재 쓰레드의 우선순위를 강제로 변경한다. 최근 우선순위와 원본 우선순위를 함께 변경한다.
+ * 단, 우선순위를 기부받은 경우에는 원본 우선순위만 변경하고 최근 우선순위는 그대로 둔다.
+ * 
+ */
 void
 thread_set_priority (int new_priority) {
 	if (!list_empty(&thread_current() -> donors)) {
 		thread_current() -> prev_priority = new_priority;
 		return;
 	}
-	thread_current ()->priority = new_priority;
+	thread_current ()->priority = thread_current() -> prev_priority = new_priority; // 기부목록이 없으면 원래 우선순위도 변경시킨다.
 	struct thread *high_priority_thread = list_entry(list_begin(&ready_list), struct thread, elem);
 	if (high_priority_thread && high_priority_thread->priority > new_priority) {
 		thread_yield();
