@@ -374,6 +374,19 @@ thread_yield (void) {
 }
 
 /**
+ * @brief 쓰레드를 양보할 수 있는 경우에만 양보한다.
+ * 
+ */
+void
+thread_try_yield (void) {
+	if (!list_empty(&ready_list) && thread_current() != idle_thread) {
+		struct thread *t = list_entry (list_begin(&ready_list), struct thread, elem);
+		if (t->priority > thread_current() -> priority)
+			thread_yield();
+	}
+}
+
+/**
  * @brief 현재 쓰레드의 우선순위를 강제로 변경한다. 최근 우선순위와 원본 우선순위를 함께 변경한다.
  * 단, 우선순위를 기부받은 경우에는 원본 우선순위만 변경하고 최근 우선순위는 그대로 둔다.
  * 

@@ -117,7 +117,7 @@ sema_up (struct semaphore *sema) {
 	}
 	sema->value++;
 	intr_set_level (old_level);
-	thread_yield(); // 우선순위가 변경된 경우에 다시 ready_list에 넣어주기 위함
+	thread_try_yield(); // 우선순위가 변경된 경우에 다시 ready_list에 넣어주기 위함
 	// ( 만약 현재 실행흐름이 우선순위가 가장 높다면 곧바로 실행흐름을 가져온다. )
 }
 
