@@ -479,8 +479,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	// 000000004747ffd0  ed ff 47 47 00 00 00 00-f9 ff 47 47 00 00 00 00 |..GG......GG....|
 	// 000000004747ffe0  00 00 00 00 00 00 00 00-00 00 00 00 00 61 72 67 |.............arg|
 	// 000000004747fff0  73 2d 73 69 6e 67 6c 65-00 6f 6e 65 61 72 67 00 |s-single.onearg.|
-	*rsp -= (ROUND_UP(total_argv_length, 8) - total_argv_length);
-	**(uint8_t **) rsp = 0;
+	int padding_size = ROUND_UP(total_argv_length, 8) - total_argv_length;
+	*rsp -= padding_size;
+	memset(*(uint8_t **) rsp, 0, padding_size); // 쓰레기 값이 있는 경우를 고려하여, 패딩은 모두 0으로 초기화
 
 	// 매개변수가 담긴 값을 가리키는 주소를 저장한다.
 	for (int i = argc; i > -1; i--) {
