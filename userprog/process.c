@@ -457,15 +457,15 @@ load (const char *file_name, struct intr_frame *if_) {
 	// 필요한 변수 : 스택 포인터, 매개변수 값들을 담은 변수, (패딩을 위한) 현재까지 사용한 byte 수 
 	void **rsp = &if_->rsp; // stack 시작 지점, 0x47480000 (시작 지점에는 데이터 못 넣음)
 	int total_argv_length = 0;
-	char *argv_addr[ARGV_LIMIT];
+	uintptr_t argv_addr[ARGV_LIMIT];
 
-	argv_addr[argc] = '\0';
+	argv_addr[argc] = 0;
 	for (int i = argc - 1; i > -1; i--) {
 		int argv_length = strlen(argv[i]) + 1; // \0 포함
 		total_argv_length += argv_length;
 		*rsp -= argv_length; // 인자 길이만큼 스택 포인터 감소
 		strlcpy(*rsp, argv[i], argv_length); // 주소에 문자열 값을저장
-		argv_addr[i] = *(char **) rsp;
+		argv_addr[i] = (uintptr_t) *rsp;
 	}
 	
 	// Padding, 8의 배수로 정렬한다. ex) 현재 앞에서 char 27를 담은 경우, 8의 배수인 32로 맞춰줘야함. 따라서 5(32 - 27)만큼 스택 포인터를 낮춰준다.
@@ -486,7 +486,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	// 매개변수가 담긴 값을 가리키는 주소를 저장한다.
 	for (int i = argc; i > -1; i--) {
 		*rsp -= 8; // 포인터 크기만큼 스택 포인터 감소
-		**(uintptr_t **) rsp = (uintptr_t) argv_addr[i]; // rsp에 주소값을 저장
+		**(uintptr_t **) rsp = argv_addr[i]; // rsp에 주소값을 저장
 	}
 
 	// 마지막으로 반환 주소를 넣어준다.
