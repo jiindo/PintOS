@@ -22,6 +22,8 @@
 #include "vm/vm.h"
 #endif
 
+#define ARGV_LIMIT 32
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -204,6 +206,8 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	// for simple tests
+	for (size_t i = 0; i < 100000000; i++);
 	return -1;
 }
 
@@ -335,6 +339,12 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 
+	// NOTE: 여러 인자가 들어올 경우 Tokenizing이 필요하다!
+	int argc = 0;
+	char *argv[ARGV_LIMIT], *token, *tokenized_arg; // 문자열(인자 값)의 포인터 배열 (32개로 제한), 쪼개진 문자열(앞), 쪼개진 문자열(뒤)
+   	for (token = strtok_r (file_name, " ", &tokenized_arg); token != NULL; token = strtok_r (NULL, " ", &tokenized_arg))
+		argv[argc++] = token;
+		
 	/* Open executable file. */
 	file = filesys_open (file_name);
 	if (file == NULL) {
@@ -413,10 +423,78 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
+	// ** No args **
+	//  address   |      name      |     data       |  type		 |
+	// 0x4747fff6 |	 argv[0][...]  | 'args-none\0'  | char[10]	 |
+	// 0x4747ffee |    argv[0]     |   0x4747fff6   | char *	 | <----- rsi
+	// 0x4747ffe6 | return address |       0        | void (*)() | <----- rsp 
+	// printf("1 - check rsp (kernel VA) %p\n", &if_->rsp); ---> 0x800423ff97
+	// printf("2 - check rsp (user VA) %p\n", if_->rsp);    ---> 0x47480000
+	// printf("%x -- %x --- %x\n\n", USER_STACK - 10, USER_STACK - 18, USER_STACK - 26);
 
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	// ** One or Many args ** (Not padding)
+	//  address   |      name      |     data       |  type		 |
+	// 0x4747fff9 |	 argv[1][...]  |   'onearg\0'   | char[7]	 |
+	// 0x4747ffed |	 argv[0][...]  | 'args-single\0'| char[12]	 |
+	// 0x4747ffe5 |    argv[1]     |   0x4747fff9   | char *	 |
+	// 0x4747ffdd |    argv[0]     |   0x4747ffed   | char *	 | <----- rsi
+	// 0x4747ffd5 | return address |       0        | void (*)() | <----- rsp 
+	// printf("%x - %x - %x - %x - %x\n\n", USER_STACK - 7, USER_STACK - (7 + 12), USER_STACK - (7 + 12 + 8), USER_STACK - (7 + 12 + 8 + 8), USER_STACK - (7 + 12 + 8 + 8 + 8));
 
+	// ** One or Many args ** (Padding)
+	//  address   |      name      |     data       |  type		 |
+	// 0x4747fff9 |	 argv[1][...]  |   'onearg\0'   | char[7]	 |
+	// 0x4747ffed |	 argv[0][...]  | 'args-single\0'| char[12]	 |
+	// 0x4747ffe8 |	 word-aligned  |       0        | uint8[5]	 |
+	// 0x4747ffe0 |    argv[1]     |   0x4747fff9   | char *	 |
+	// 0x4747ffd8 |    argv[0]     |   0x4747ffed   | char *	 | <----- rsi
+	// 0x4747ffd0 | return address |       0        | void (*)() | <----- rsp 
+
+	// 1. 매개변수의 값들을 (쪼개서) 저장한다.
+	// 2. 매개변수가 담긴 값을 가리키는 주소를 저장한다.
+	// 3. (optional) 지금까지 넣은 데이터를 8의 배수로 맞춰주기 위해 패딩을 넣는다.
+	// 4. 마지막으로 반환 주소를 넣어준다.
+	// 필요한 변수 : 스택 포인터, 매개변수 값들을 담은 변수, (패딩을 위한) 현재까지 사용한 byte 수 
+	void **rsp = &if_->rsp; // stack 시작 지점, 0x47480000 (시작 지점에는 데이터 못 넣음)
+	int total_argv_length = 0;
+	char *argv_addr[ARGV_LIMIT];
+
+	argv_addr[argc] = '\0';
+	for (int i = argc - 1; i > -1; i--) {
+		int argv_length = strlen(argv[i]) + 1; // \0 포함
+		total_argv_length += argv_length;
+		*rsp -= argv_length; // 인자 길이만큼 스택 포인터 감소
+		strlcpy(*rsp, argv[i], argv_length); // 주소에 문자열 값을저장
+		argv_addr[i] = *(char **) rsp;
+	}
+	
+	// Padding, 8의 배수로 정렬한다. ex) 현재 앞에서 char 27를 담은 경우, 8의 배수인 32로 맞춰줘야함. 따라서 5(32 - 27)만큼 스택 포인터를 낮춰준다.
+	// ** Before padding **
+	// 000000004747ffc0                                         00 00 00 |             ...|
+	// 000000004747ffd0  00 00 00 00 00 ed ff 47-47 00 00 00 00 f9 ff 47 |.......GG......G|
+	// 000000004747ffe0  47 00 00 00 00 00 00 00-00 00 00 00 00 61 72 67 |G............arg|
+	// 000000004747fff0  73 2d 73 69 6e 67 6c 65-00 6f 6e 65 61 72 67 00 |s-single.onearg.|
+	// ** After padding **
+	// 000000004747ffc0                          00 00 00 00 00 00 00 00 |        ........|
+	// 000000004747ffd0  ed ff 47 47 00 00 00 00-f9 ff 47 47 00 00 00 00 |..GG......GG....|
+	// 000000004747ffe0  00 00 00 00 00 00 00 00-00 00 00 00 00 61 72 67 |.............arg|
+	// 000000004747fff0  73 2d 73 69 6e 67 6c 65-00 6f 6e 65 61 72 67 00 |s-single.onearg.|
+	*rsp -= (ROUND_UP(total_argv_length, 8) - total_argv_length);
+	// **(uintptr_t **) rsp = 0;
+
+	// 매개변수가 담긴 값을 가리키는 주소를 저장한다.
+	for (int i = argc; i > -1; i--) {
+		*rsp -= 8; // 포인터 크기만큼 스택 포인터 감소
+		**(uintptr_t **) rsp = (uintptr_t) argv_addr[i]; // rsp에 주소값을 저장
+	}
+
+	// 마지막으로 반환 주소를 넣어준다.
+	*rsp -= 8;
+	**(uintptr_t **) rsp = 0; // return address
+	if_->R.rdi = argc;
+	if_->R.rsi = (uint64_t) *rsp + sizeof(void *);
+
+	hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // 시작 지점, 출력할 데이터가 담겨있는 포인터, 출력할 크기, (추가 내용) 아스키 코드로 변환 여부)
 	success = true;
 
 done:
