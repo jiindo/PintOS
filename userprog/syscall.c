@@ -4,12 +4,16 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/init.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+void halt();
+void exit(int status);
+int write(int fd, void *buffer, unsigned length);
 
 /* System call.
  *
@@ -40,34 +44,19 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	// TODO: Your implementation goes here.
 	/**
 	 * TODO
 	 * 1. 시스템 콜 번호를 받아온다.
 	 * 2. 각 번호에 맞게 분기한다.
 	 * 3. 각 시스템 콜에 맞는 코드를 작성한다.
 	 */
-	// SYS_HALT,                   /* Halt the operating system. */
-	// SYS_EXIT,                   /* Terminate this process. */
-	// SYS_FORK,                   /* Clone current process. */
-	// SYS_EXEC,                   /* Switch current process. */
-	// SYS_WAIT,                   /* Wait for a child process to die. */
-	// SYS_CREATE,                 /* Create a file. */
-	// SYS_REMOVE,                 /* Delete a file. */
-	// SYS_OPEN,                   /* Open a file. */
-	// SYS_FILESIZE,               /* Obtain a file's size. */
-	// SYS_READ,                   /* Read from a file. */
-	// SYS_WRITE,                  /* Write to a file. */
-	// SYS_SEEK,                   /* Change position in a file. */
-	// SYS_TELL,                   /* Report current position in a file. */
-	// SYS_CLOSE,                  /* Close a file. */
 	int syscall_num = f->R.rax;
 	switch (syscall_num) {
 		case SYS_HALT:
-			/* code */
+			halt();
 			break;
-		case SYS_EXIT:
-			/* code */
+		case SYS_EXIT: 
+			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
 			/* code */
@@ -94,7 +83,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_WRITE:
-			/* code */
+			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
 			/* code */
@@ -108,4 +97,26 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		default:
 			break;
 	}
+}
+
+void halt() {
+	power_off();
+}
+
+void exit(int status) {
+	// 쓰레드 이름이 명령줄 인자값을 그대로 받아와서 만들어짐. (init.c에 247번 줄 참조)
+	char *thread_name = thread_current() -> name;
+	char *temp = '\0';
+	strtok_r (thread_name, " ", &temp);
+	printf("%s: exit(%d)\n", thread_name, status);
+	thread_exit();
+}
+
+int write(int fd, void *buffer, unsigned length) {
+	if (fd == 1) {
+		putbuf(buffer, length);
+	} else {
+		// TODO: 표준 출력이 아닐 때
+	}
+	return length; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
 }
