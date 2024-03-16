@@ -12,11 +12,12 @@
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
-void halt();
-void exit(int status);
+void halt ();
+void exit (int status);
 int read (int fd, void *buffer, unsigned size);
-int write(int fd, void *buffer, unsigned length);
+int write (int fd, void *buffer, unsigned length);
 bool create (const char *file, unsigned initial_size);
+int open (const char *file);
 
 /* System call.
  *
@@ -77,7 +78,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_OPEN:
-			/* code */
+			f->R.rax = open(f->R.rdi);
 			break;
 		case SYS_FILESIZE:
 			/* code */
@@ -149,4 +150,14 @@ bool create (const char *file, unsigned initial_size) {
 		exit(-1);
 
 	return filesys_create(file, initial_size);
+}
+
+int open (const char *file) {
+	if(pml4_get_page(thread_current()->pml4, file) == NULL || file == NULL || !is_user_vaddr(file)) 
+		exit(-1);
+	struct file *opened_file = filesys_open(file);
+	int fd = -1;
+	if (opened_file != NULL)
+	 	fd = allocate_fd(opened_file, &thread_current()->fd_list);
+	return fd;
 }

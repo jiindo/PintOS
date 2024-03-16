@@ -555,6 +555,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 
 	list_init(&t->donors);
+	#ifdef USERPROG
+	list_init(&t->fd_list);
+	t->last_created_fd = 2;
+	#endif
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -734,3 +738,14 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+#ifdef USERPROG
+int
+allocate_fd(struct file *file, struct list *fd_list) {
+	struct file_descriptor file_descriptor;
+	file_descriptor.fd = (thread_current()->last_created_fd)++;
+	file_descriptor.file_p = file;
+	list_push_back(fd_list, &file_descriptor.fd_elem);
+	return file_descriptor.fd;
+}
+#endif

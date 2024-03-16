@@ -103,6 +103,8 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	struct list fd_list;				/* 파일 디스크립터 리스트 */
+	int last_created_fd;				/* 마지막으로 생성된 파일 디스크립터 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -112,6 +114,12 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+};
+
+struct file_descriptor {
+	int fd;
+	struct file *file_p;
+	struct list_elem fd_elem;
 };
 
 /* If false (default), use round-robin scheduler.
@@ -157,4 +165,9 @@ void do_iret (struct intr_frame *tf);
 bool high_priority_first (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 bool high_priority_first_for_donor (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 bool high_priority_later (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
+
+#ifdef USERPROG
+int allocate_fd(struct file *file, struct list *fd_list);
+#endif
+
 #endif /* threads/thread.h */
