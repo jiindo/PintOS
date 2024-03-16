@@ -207,7 +207,7 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 	// for simple tests
-	for (size_t i = 0; i < 100000000; i++);
+	for (size_t i = 0; i < 400000000; i++);
 	return -1;
 }
 
@@ -495,7 +495,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->R.rdi = argc;
 	if_->R.rsi = (uint64_t) *rsp + sizeof(void *);
 
-	hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // 시작 지점, 출력할 데이터가 담겨있는 포인터, 출력할 크기, (추가 내용) 아스키 코드로 변환 여부)
+	// hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // 시작 지점, 출력할 데이터가 담겨있는 포인터, 출력할 크기, (추가 내용) 아스키 코드로 변환 여부)
 	success = true;
 
 done:

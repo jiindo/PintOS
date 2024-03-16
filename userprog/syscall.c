@@ -72,8 +72,6 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_CREATE:
 			f->R.rax = create(f->R.rdi, f->R.rsi);
-			filesys_done();
-			//exit(0);
 			break;
 		case SYS_REMOVE:
 			/* code */
@@ -147,7 +145,7 @@ int write(int fd, void *buffer, unsigned length) {
 }
 
 bool create (const char *file, unsigned initial_size) {
-	if(file==NULL || !is_user_vaddr(file)) 
+	if(file == NULL || !is_user_vaddr(file) || *file == '\0') 
 		exit(-1);
 
 	return filesys_create(file, initial_size);
