@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "include/filesys/filesys.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -15,6 +16,7 @@ void halt();
 void exit(int status);
 int read (int fd, void *buffer, unsigned size);
 int write(int fd, void *buffer, unsigned length);
+bool create (const char *file, unsigned initial_size);
 
 /* System call.
  *
@@ -69,7 +71,9 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_CREATE:
-			/* code */
+			f->R.rax = create(f->R.rdi, f->R.rsi);
+			filesys_done();
+			//exit(0);
 			break;
 		case SYS_REMOVE:
 			/* code */
@@ -131,13 +135,20 @@ int read (int fd, void *buffer, unsigned size) {
 
 int write(int fd, void *buffer, unsigned length) {
 	int byte = 0;
-	if (fd == 0)
+	if (fd == 0) {
 		return -1;
-	else if (fd == 1) {
+	} else if (fd == 1) {
 		putbuf(buffer, length);
 		byte = length;
 	} else {
-		// TODO: 표준 출력이 아닐 때
+		// TODO: 표준 입출력이 아닐 때
 	}
 	return byte; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
+}
+
+bool create (const char *file, unsigned initial_size) {
+	if(file==NULL || !is_user_vaddr(file)) 
+		exit(-1);
+
+	return filesys_create(file, initial_size);
 }
