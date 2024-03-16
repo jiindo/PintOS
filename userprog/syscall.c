@@ -145,7 +145,7 @@ int write(int fd, void *buffer, unsigned length) {
 }
 
 bool create (const char *file, unsigned initial_size) {
-	if(file == NULL || !is_user_vaddr(file) || *file == '\0') 
+	if( pml4_get_page(thread_current()->pml4, file) == NULL || file == NULL || !is_user_vaddr(file) || *file == '\0' ) 
 		exit(-1);
 
 	return filesys_create(file, initial_size);

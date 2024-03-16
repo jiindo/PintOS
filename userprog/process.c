@@ -207,7 +207,7 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 	// for simple tests
-	for (size_t i = 0; i < 400000000; i++);
+	for (size_t i = 0; i < 3500000000; i++);
 	return -1;
 }
 

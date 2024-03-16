@@ -10,3 +10,4 @@ test_main (void)
 {
   msg ("create(0x20101234): %d", create ((char *) 0x20101234, 0));
 }
+
