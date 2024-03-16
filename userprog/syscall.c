@@ -13,6 +13,7 @@ void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 void halt();
 void exit(int status);
+int read (int fd, void *buffer, unsigned size);
 int write(int fd, void *buffer, unsigned length);
 
 /* System call.
@@ -80,7 +81,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_READ:
-			/* code */
+			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_WRITE:
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
@@ -111,12 +112,32 @@ void exit(int status) {
 	printf("%s: exit(%d)\n", thread_name, status);
 	thread_exit();
 }
+ 
+int read (int fd, void *buffer, unsigned size) {
+	int byte = 0;
+	if (fd == 0) {
+		char *_buffer = buffer;
+		while (byte < size) {
+			_buffer[byte++] = input_getc();
+		}
+	}
+	else if (fd == 1)
+		return -1;
+	else {
+		// 표준 입출력이 아닐 때
+	}
+	return byte;
+}
 
 int write(int fd, void *buffer, unsigned length) {
-	if (fd == 1) {
+	int byte = 0;
+	if (fd == 0)
+		return -1;
+	else if (fd == 1) {
 		putbuf(buffer, length);
+		byte = length;
 	} else {
 		// TODO: 표준 출력이 아닐 때
 	}
-	return length; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
+	return byte; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
 }
