@@ -58,6 +58,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -742,10 +743,13 @@ allocate_tid (void) {
 #ifdef USERPROG
 int
 allocate_fd(struct file *file, struct list *fd_list) {
-	struct file_descriptor file_descriptor;
-	file_descriptor.fd = (thread_current()->last_created_fd)++;
-	file_descriptor.file_p = file;
-	list_push_back(fd_list, &file_descriptor.fd_elem);
-	return file_descriptor.fd;
+	struct file_descriptor *file_descriptor;
+	file_descriptor = malloc(sizeof(struct file_descriptor));
+	if(file_descriptor == NULL)
+		return -1;
+	file_descriptor->fd = (thread_current()->last_created_fd)++;
+	file_descriptor->file_p = file;
+	list_push_back(fd_list, &file_descriptor->fd_elem);
+	return file_descriptor->fd;
 }
 #endif
