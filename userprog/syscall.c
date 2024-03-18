@@ -8,7 +8,8 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
-#include "include/filesys/filesys.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -19,6 +20,7 @@ int write (int fd, void *buffer, unsigned length);
 bool create (const char *file, unsigned initial_size);
 int open (const char *file);
 void close (int fd);
+int filesize (int fd);
 
 /* System call.
  *
@@ -82,7 +84,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = open(f->R.rdi);
 			break;
 		case SYS_FILESIZE:
-			/* code */
+			f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
 			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
@@ -118,6 +120,9 @@ void exit(int status) {
 }
  
 int read (int fd, void *buffer, unsigned size) {
+	if(pml4_get_page(thread_current()->pml4, buffer) == NULL || buffer == NULL || !is_user_vaddr(buffer) || fd < 0)
+		exit(-1);
+
 	int byte = 0;
 	if (fd == 0) {
 		char *_buffer = buffer;
@@ -127,8 +132,23 @@ int read (int fd, void *buffer, unsigned size) {
 	}
 	else if (fd == 1)
 		return -1;
-	else {
-		// 표준 입출력이 아닐 때
+	else { // 표준 입출력이 아닐 때
+		struct list *fd_list = &thread_current()->fd_list;
+        ASSERT(fd_list != NULL);
+        ASSERT(fd > 1);
+        if (list_empty(fd_list)) return -1;
+
+        struct file_descriptor *file_descriptor;
+        struct list_elem *curr_fd_elem = list_begin(fd_list);
+        ASSERT(curr_fd_elem != NULL);
+        while (curr_fd_elem != list_tail(fd_list)) {
+            file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
+            if (file_descriptor->fd == fd) {
+                byte = file_read(file_descriptor->file_p, buffer, size);
+                break;
+            }
+            curr_fd_elem = list_next(curr_fd_elem);
+        }
 	}
 	return byte;
 }
@@ -183,4 +203,23 @@ void close (int fd) {
 		}
 		curr_fd_elem = list_next(curr_fd_elem);
 	}	
+}
+
+int filesize (int fd) {
+	struct list *fd_list = &thread_current()->fd_list;
+	ASSERT(fd_list != NULL);
+	ASSERT(fd > 1);
+	if (list_empty(fd_list)) return -1;
+	
+	struct file_descriptor *file_descriptor;
+	struct list_elem *curr_fd_elem = list_begin(fd_list);
+	ASSERT(curr_fd_elem != NULL);
+	while (curr_fd_elem != list_tail(fd_list)) {
+		file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
+		if (file_descriptor->fd == fd) {
+			return file_length(file_descriptor->file_p);
+		}
+		curr_fd_elem = list_next(curr_fd_elem);
+	}
+	return -1;
 }
