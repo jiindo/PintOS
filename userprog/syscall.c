@@ -13,6 +13,7 @@
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+struct file_descriptor *find_file_descriptor(int fd);
 void halt ();
 void exit (int status);
 int read (int fd, void *buffer, unsigned size);
@@ -21,6 +22,7 @@ bool create (const char *file, unsigned initial_size);
 int open (const char *file);
 void close (int fd);
 int filesize (int fd);
+
 
 /* System call.
  *
@@ -59,6 +61,9 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	 */
 	int syscall_num = f->R.rax;
 	switch (syscall_num) {
+		case -1: 
+			printf("page flate is come!\n");
+			break;
 		case SYS_HALT:
 			halt();
 			break;
@@ -106,6 +111,25 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	}
 }
 
+struct file_descriptor *find_file_descriptor(int fd) {
+	struct list *fd_list = &thread_current()->fd_list;
+	ASSERT(fd_list != NULL);
+	ASSERT(fd > 1);
+	if (list_empty(fd_list)) return NULL;
+	
+	struct file_descriptor *file_descriptor;
+	struct list_elem *curr_fd_elem = list_begin(fd_list);
+	ASSERT(curr_fd_elem != NULL);
+	while (curr_fd_elem != list_tail(fd_list)) {
+		file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
+		if (file_descriptor->fd == fd) {
+			return file_descriptor;
+		}
+		curr_fd_elem = list_next(curr_fd_elem);
+	}
+	return NULL;
+}
+
 void halt() {
 	power_off();
 }
@@ -133,35 +157,27 @@ int read (int fd, void *buffer, unsigned size) {
 	else if (fd == 1)
 		return -1;
 	else { // 표준 입출력이 아닐 때
-		struct list *fd_list = &thread_current()->fd_list;
-        ASSERT(fd_list != NULL);
-        ASSERT(fd > 1);
-        if (list_empty(fd_list)) return -1;
-
-        struct file_descriptor *file_descriptor;
-        struct list_elem *curr_fd_elem = list_begin(fd_list);
-        ASSERT(curr_fd_elem != NULL);
-        while (curr_fd_elem != list_tail(fd_list)) {
-            file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
-            if (file_descriptor->fd == fd) {
-                byte = file_read(file_descriptor->file_p, buffer, size);
-                break;
-            }
-            curr_fd_elem = list_next(curr_fd_elem);
-        }
+		struct file_descriptor *file_desc = find_file_descriptor(fd);
+		if (file_desc == NULL) return -1;
+		byte = file_read(file_desc->file_p, buffer, size);
 	}
 	return byte;
 }
 
 int write(int fd, void *buffer, unsigned length) {
+	if(pml4_get_page(thread_current()->pml4, buffer) == NULL || buffer == NULL || !is_user_vaddr(buffer) || fd < 0)
+		exit(-1);
+
 	int byte = 0;
 	if (fd == 0) {
 		return -1;
 	} else if (fd == 1) {
 		putbuf(buffer, length);
 		byte = length;
-	} else {
-		// TODO: 표준 입출력이 아닐 때
+	} else { //표준 입출력이 아닐 때
+		struct file_descriptor *file_desc = find_file_descriptor(fd);
+		if (file_desc == NULL) return -1;
+		byte = file_write(file_desc->file_p, buffer, length);
 	}
 	return byte; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
 }
@@ -185,41 +201,15 @@ int open (const char *file) {
 }
 
 void close (int fd) {
-	struct list *fd_list = &thread_current()->fd_list;
-	ASSERT(fd_list != NULL);
-	ASSERT(fd > 1);
-	if (list_empty(fd_list)) return;
-	
-	struct file_descriptor *file_descriptor;
-	struct list_elem *curr_fd_elem = list_begin(fd_list);
-	ASSERT(curr_fd_elem != NULL);
-	while (curr_fd_elem != list_tail(fd_list)) {
-		file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
-		if (file_descriptor->fd == fd) {
-			file_close(file_descriptor->file_p);
-			list_remove(curr_fd_elem);
-			free(file_descriptor);
-			break;
-		}
-		curr_fd_elem = list_next(curr_fd_elem);
-	}	
+	struct file_descriptor *file_desc = find_file_descriptor(fd);
+	if (file_desc == NULL) return;
+	file_close(file_desc->file_p);
+	list_remove(&file_desc->fd_elem);
+	free(file_desc);
 }
 
 int filesize (int fd) {
-	struct list *fd_list = &thread_current()->fd_list;
-	ASSERT(fd_list != NULL);
-	ASSERT(fd > 1);
-	if (list_empty(fd_list)) return -1;
-	
-	struct file_descriptor *file_descriptor;
-	struct list_elem *curr_fd_elem = list_begin(fd_list);
-	ASSERT(curr_fd_elem != NULL);
-	while (curr_fd_elem != list_tail(fd_list)) {
-		file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
-		if (file_descriptor->fd == fd) {
-			return file_length(file_descriptor->file_p);
-		}
-		curr_fd_elem = list_next(curr_fd_elem);
-	}
-	return -1;
+	struct file_descriptor *file_desc = find_file_descriptor(fd);
+	if (file_desc == NULL) return -1;
+	return file_length(file_desc->file_p);
 }
