@@ -18,6 +18,7 @@ int read (int fd, void *buffer, unsigned size);
 int write (int fd, void *buffer, unsigned length);
 bool create (const char *file, unsigned initial_size);
 int open (const char *file);
+void close (int fd);
 
 /* System call.
  *
@@ -96,7 +97,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_CLOSE:
-			/* code */
+			close(f->R.rdi);
 			break;
 		default:
 			break;
@@ -160,4 +161,24 @@ int open (const char *file) {
 	if (opened_file != NULL)
 	 	fd = allocate_fd(opened_file, &thread_current()->fd_list);
 	return fd;
+}
+
+void close (int fd) {
+	struct list *fd_list = &thread_current()->fd_list;
+	if (list_empty(fd_list)) return;
+	
+	struct file_descriptor *file_descriptor;
+	struct list_elem *curr_fd_elem = list_begin(fd_list);
+	int cnt = 0;
+	while (curr_fd_elem != list_tail(fd_list)) {
+		// file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
+		// if (file_descriptor->fd == fd) {
+		// 	file_close(file_descriptor->file_p);
+		// 	list_remove(curr_fd_elem);
+		// 	break;
+		// }
+		// cnt++;
+		curr_fd_elem = list_next(curr_fd_elem);
+	}	
+	// printf("fd count : %d\n", cnt);
 }
