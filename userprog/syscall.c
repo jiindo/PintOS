@@ -61,9 +61,6 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	 */
 	int syscall_num = f->R.rax;
 	switch (syscall_num) {
-		case -1: 
-			printf("page flate is come!\n");
-			break;
 		case SYS_HALT:
 			halt();
 			break;
@@ -179,7 +176,7 @@ int write(int fd, void *buffer, unsigned length) {
 		if (file_desc == NULL) return -1;
 		byte = file_write(file_desc->file_p, buffer, length);
 	}
-	return byte; // 실제 파일을 읽기 전까지, 임시로 입력받은 길이 값 반환
+	return byte;
 }
 
 bool create (const char *file, unsigned initial_size) {
