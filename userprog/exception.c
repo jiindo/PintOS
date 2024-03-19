@@ -87,6 +87,7 @@ kill (struct intr_frame *f) {
 					thread_name (), f->vec_no, intr_name (f->vec_no));
 			intr_dump_frame (f);
 			thread_exit ();
+			
 		case SEL_KCSEG:
 			/* Kernel's code segment, which indicates a kernel bug.
 			   Kernel code shouldn't throw exceptions.  (Page faults
@@ -129,6 +130,10 @@ page_fault (struct intr_frame *f) {
 
 	fault_addr = (void *) rcr2();
 
+	//다른 경우는 생각하지 않고 fault_addr가 잘못된 주소를 참조하려 할 경우만 생각하여 exit한다.
+	if(fault_addr == NULL || !is_user_vaddr(fault_addr) || pml4_get_page(thread_current()->pml4, fault_addr) == NULL)
+		exit(-1);
+	
 	/* Turn interrupts back on (they were only off so that we could
 	   be assured of reading CR2 before it changed). */
 	intr_enable ();
