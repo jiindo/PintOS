@@ -10,6 +10,7 @@
 #include "intrinsic.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "userprog/exception.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -22,6 +23,7 @@ bool create (const char *file, unsigned initial_size);
 int open (const char *file);
 void close (int fd);
 int filesize (int fd);
+static int64_t get_user (const uint8_t *uaddr);
 
 
 /* System call.
@@ -86,6 +88,8 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_OPEN:
+			if( get_user(f->R.rdi) == -1)
+				exit(-1);
 			f->R.rax = open(f->R.rdi);
 			break;
 		case SYS_FILESIZE:
@@ -144,7 +148,7 @@ void exit(int status) {
 }
  
 int read (int fd, void *buffer, unsigned size) {
-	if(pml4_get_page(thread_current()->pml4, buffer) == NULL || buffer == NULL || !is_user_vaddr(buffer) || fd < 0)
+	if(fd <0)
 		exit(-1);
 
 	int byte = 0;
@@ -165,7 +169,7 @@ int read (int fd, void *buffer, unsigned size) {
 }
 
 int write(int fd, void *buffer, unsigned length) {
-	if(pml4_get_page(thread_current()->pml4, buffer) == NULL || buffer == NULL || !is_user_vaddr(buffer) || fd < 0)
+	if(fd <0)
 		exit(-1);
 
 	int byte = 0;
@@ -183,15 +187,13 @@ int write(int fd, void *buffer, unsigned length) {
 }
 
 bool create (const char *file, unsigned initial_size) {
-	if(pml4_get_page(thread_current()->pml4, file) == NULL || file == NULL || !is_user_vaddr(file) || *file == '\0') 
+	if(*file == '\0')
 		exit(-1);
 
 	return filesys_create(file, initial_size);
 }
 
 int open (const char *file) {
-	if(pml4_get_page(thread_current()->pml4, file) == NULL || file == NULL || !is_user_vaddr(file)) 
-		exit(-1);
 	struct file *opened_file = filesys_open(file);
 	int fd = -1;
 	if (opened_file != NULL) 
@@ -212,4 +214,19 @@ int filesize (int fd) {
 	struct file_descriptor *file_desc = find_file_descriptor(fd);
 	if (file_desc == NULL) return -1;
 	return file_length(file_desc->file_p);
+}
+
+/* Reads a byte at user virtual address UADDR.
+ * UADDR must be below KERN_BASE.
+ * Returns the byte value if successful, -1 if a segfault
+ * occurred. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+    int64_t result;
+    __asm __volatile (
+    "movabsq $done_get, %0\n"
+    "movzbq %1, %0\n"
+    "done_get:\n"
+    : "=&a" (result) : "m" (*uaddr));
+    return result;
 }
