@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -21,6 +22,7 @@ enum thread_status {
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
+typedef tid_t pid_t;
 #define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
@@ -105,6 +107,7 @@ struct thread {
 	uint64_t *pml4;                     /* Page map level 4 */
 	struct list fd_list;				/* 파일 디스크립터 리스트 */
 	int last_created_fd;				/* 마지막으로 생성된 파일 디스크립터 */
+	struct semaphore fork_sema;			/* 포크 완료까지 프로세스를 지연시키기 위한 세마포어 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */

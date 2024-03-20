@@ -15,6 +15,7 @@
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 struct file_descriptor *find_file_descriptor(int fd);
+
 void halt ();
 void exit (int status);
 int read (int fd, void *buffer, unsigned size);
@@ -23,8 +24,23 @@ bool create (const char *file, unsigned initial_size);
 int open (const char *file);
 void close (int fd);
 int filesize (int fd);
-static int64_t get_user (const uint8_t *uaddr);
+pid_t fork (const char *thread_name, struct intr_frame *if_);
+int wait (pid_t pid);
 
+/* Reads a byte at user virtual address UADDR.
+ * UADDR must be below KERN_BASE.
+ * Returns the byte value if successful, -1 if a segfault
+ * occurred. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+    int64_t result;
+    __asm __volatile (
+    "movabsq $done_get, %0\n"
+    "movzbq %1, %0\n"
+    "done_get:\n"
+    : "=&a" (result) : "m" (*uaddr));
+    return result;
+}
 
 /* System call.
  *
@@ -70,13 +86,13 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
-			/* code */
+			f->R.rax = fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
 			/* code */
 			break;
 		case SYS_WAIT:
-			/* code */
+			f->R.rax = wait(f->R.rdi);
 			break;
 		case SYS_CREATE:
 			f->R.rax = create(f->R.rdi, f->R.rsi);
@@ -85,7 +101,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			/* code */
 			break;
 		case SYS_OPEN:
-			if( get_user(f->R.rdi) == -1)
+			if (get_user(f->R.rdi) == -1)
 				exit(-1);
 			f->R.rax = open(f->R.rdi);
 			break;
@@ -213,17 +229,10 @@ int filesize (int fd) {
 	return file_length(file_desc->file_p);
 }
 
-/* Reads a byte at user virtual address UADDR.
- * UADDR must be below KERN_BASE.
- * Returns the byte value if successful, -1 if a segfault
- * occurred. */
-static int64_t
-get_user (const uint8_t *uaddr) {
-    int64_t result;
-    __asm __volatile (
-    "movabsq $done_get, %0\n"
-    "movzbq %1, %0\n"
-    "done_get:\n"
-    : "=&a" (result) : "m" (*uaddr));
-    return result;
+pid_t fork (const char *thread_name, struct intr_frame *if_) {
+	return process_fork(thread_name, if_);
+}
+
+int wait (pid_t pid) {
+	return process_wait(pid);
 }
