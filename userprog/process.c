@@ -112,8 +112,12 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	}
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
+	if (parent_page == NULL)
+	 	return false;
 	/* 3. Allocate new PAL_USER page for the child and set result to NEWPAGE. */
 	newpage = palloc_get_page(PAL_USER);
+	if (newpage == NULL)
+		return false;
 	/* 4. Duplicate parent's page to the new page and
 	 *    check whether parent's page is writable or not 
 	 *    (set WRITABLE according to the result). */
