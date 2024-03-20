@@ -5,12 +5,14 @@
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "threads/init.h"
+#include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "userprog/exception.h"
+#include "userprog/process.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -26,6 +28,7 @@ void close (int fd);
 int filesize (int fd);
 pid_t fork (const char *thread_name, struct intr_frame *if_);
 int wait (pid_t pid);
+int exec (const char *cmd_line);
 
 /* Reads a byte at user virtual address UADDR.
  * UADDR must be below KERN_BASE.
@@ -89,7 +92,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
-			/* code */
+			f->R.rax = exec(f->R.rdi);
 			break;
 		case SYS_WAIT:
 			f->R.rax = wait(f->R.rdi);
@@ -156,6 +159,7 @@ void exit(int status) {
 	char *thread_name = thread_current() -> name;
 	char *temp = '\0';
 	strtok_r (thread_name, " ", &temp);
+	thread_current()->exit_status = status;
 	printf("%s: exit(%d)\n", thread_name, status);
 	thread_exit();
 }
@@ -235,4 +239,16 @@ pid_t fork (const char *thread_name, struct intr_frame *if_) {
 
 int wait (pid_t pid) {
 	return process_wait(pid);
+}
+
+int exec (const char *cmd_line) {
+	int size = strlen(cmd_line) + 1;
+	char *fn_copy = palloc_get_page(0);
+	if ((fn_copy) == NULL) {
+		exit(-1);
+	}
+	strlcpy(fn_copy, cmd_line, size);
+	if (process_exec(fn_copy) == -1) {
+		exit(-1);
+	}
 }
