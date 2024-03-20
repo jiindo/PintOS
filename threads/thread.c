@@ -224,7 +224,9 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 	#endif
-
+	#ifdef USERPROG
+	list_push_back(&thread_current()->children, &t->child_elem);
+	#endif
 	/* Add to run queue. */
 	thread_unblock (t);
 	if (thread_get_priority() < priority) {
@@ -559,7 +561,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	#ifdef USERPROG
 	list_init(&t->fd_list);
 	t->last_created_fd = 2;
+	list_init(&t->children);
 	sema_init(&t->fork_sema, 0);
+	sema_init(&t->wait_sema, 1);
 	#endif
 }
 

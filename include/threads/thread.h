@@ -107,7 +107,11 @@ struct thread {
 	uint64_t *pml4;                     /* Page map level 4 */
 	struct list fd_list;				/* 파일 디스크립터 리스트 */
 	int last_created_fd;				/* 마지막으로 생성된 파일 디스크립터 */
+	struct list children;				/* 자식 프로세스 리스트 */
+	struct list_elem child_elem; 		/* 자식 프로세스 리스트에 들어갈 원소 */
 	struct semaphore fork_sema;			/* 포크 완료까지 프로세스를 지연시키기 위한 세마포어 */
+	struct semaphore wait_sema;			/* 자식 프로세스 실행 완료까지 프로세스를 지연시키기 위한 세마포어 */
+	int exit_status;					/* 종료 상태 (부모 프로세스에게 알리기 위함) */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
