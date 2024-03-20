@@ -147,9 +147,22 @@ duplicate_fd_list(struct thread *dest, struct thread *org) {
 		struct file_descriptor *cpy_file_desc = malloc(sizeof(struct file_descriptor));
 		cpy_file_desc->fd = org_file_desc->fd;
 		cpy_file_desc->file_p = file_duplicate(org_file_desc->file_p);
+		if (cpy_file_desc->file_p == NULL) {
+			free(cpy_file_desc);
+			continue;
+		}
 		list_push_back(&dest->fd_list, &cpy_file_desc->fd_elem);
 	}
 	dest->last_created_fd = org->last_created_fd;
+}
+
+static void 
+fdlist_cleanup(struct thread *curr) {
+	if (list_empty(&curr->fd_list)) 
+		return;
+	struct file_descriptor *file_desc = list_entry(list_begin(&curr->fd_list), struct file_descriptor, fd_elem);
+	struct file *running_file = file_desc->file_p;
+	file_close(running_file);
 }
 
 /* A thread function that copies parent's execution context.
@@ -246,8 +259,6 @@ process_wait (tid_t child_tid UNUSED) {
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-	/* TODO: Your code goes here.
-	 * TODO: We recommend you to implement process resource cleanup here. */
 	process_cleanup ();
 	list_remove(&curr->child_elem);
 	sema_up(&curr->wait_sema);
@@ -261,6 +272,7 @@ process_cleanup (void) {
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);
 #endif
+	fdlist_cleanup(curr);
 
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
@@ -530,7 +542,10 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	if (file != NULL) { // 프로세스 실행 중에는 현재 실행 파일을 수정하지 못하게 file_close 제거
+		allocate_fd(file, &thread_current()->fd_list);
+		file_deny_write(file);
+	}
 	return success;
 }
 

@@ -13,6 +13,7 @@
 #include "filesys/file.h"
 #include "userprog/exception.h"
 #include "userprog/process.h"
+#include "threads/synch.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -29,6 +30,9 @@ int filesize (int fd);
 pid_t fork (const char *thread_name, struct intr_frame *if_);
 int wait (pid_t pid);
 int exec (const char *cmd_line);
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+bool remove(const char *file);
 
 /* Reads a byte at user virtual address UADDR.
  * UADDR must be below KERN_BASE.
@@ -58,8 +62,12 @@ get_user (const uint8_t *uaddr) {
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
+struct lock file_lock;
+
 void
 syscall_init (void) {
+	lock_init(&file_lock);
+
 	write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48  |
 			((uint64_t)SEL_KCSEG) << 32);
 	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);
@@ -101,7 +109,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = create(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_REMOVE:
-			/* code */
+			f->R.rax = remove(f->R.rdi);
 			break;
 		case SYS_OPEN:
 			if (get_user(f->R.rdi) == -1)
@@ -118,10 +126,10 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
-			/* code */
+			seek(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_TELL:
-			/* code */
+			f->R.rax = tell(f->R.rdi);
 			break;
 		case SYS_CLOSE:
 			close(f->R.rdi);
@@ -167,7 +175,6 @@ void exit(int status) {
 int read (int fd, void *buffer, unsigned size) {
 	if(fd <0)
 		exit(-1);
-
 	int byte = 0;
 	if (fd == 0) {
 		char *_buffer = buffer;
@@ -178,9 +185,11 @@ int read (int fd, void *buffer, unsigned size) {
 	else if (fd == 1)
 		return -1;
 	else { // 표준 입출력이 아닐 때
+		lock_acquire(&file_lock);
 		struct file_descriptor *file_desc = find_file_descriptor(fd);
 		if (file_desc == NULL) return -1;
 		byte = file_read(file_desc->file_p, buffer, size);
+		lock_release(&file_lock);
 	}
 	return byte;
 }
@@ -196,9 +205,11 @@ int write(int fd, void *buffer, unsigned length) {
 		putbuf(buffer, length);
 		byte = length;
 	} else { //표준 입출력이 아닐 때
+		lock_acquire(&file_lock);
 		struct file_descriptor *file_desc = find_file_descriptor(fd);
 		if (file_desc == NULL) return -1;
 		byte = file_write(file_desc->file_p, buffer, length);
+		lock_release(&file_lock);
 	}
 	return byte;
 }
@@ -251,4 +262,22 @@ int exec (const char *cmd_line) {
 	if (process_exec(fn_copy) == -1) {
 		exit(-1);
 	}
+}
+
+void seek (int fd, unsigned position) {
+	if (fd < 2 || position < 0)
+		exit(-1);
+	struct file *opened_file = find_file_descriptor(fd)->file_p;
+	file_seek(opened_file, position);
+}
+
+unsigned tell (int fd) {
+	if (fd < 2)
+		exit(-1);
+	struct file *opened_file = find_file_descriptor(fd)->file_p;
+	return file_tell(opened_file);
+}
+
+bool remove(const char *file) {
+    return filesys_remove(file);
 }
