@@ -217,16 +217,19 @@ int write(int fd, void *buffer, unsigned length) {
 bool create (const char *file, unsigned initial_size) {
 	if(*file == '\0')
 		exit(-1);
-
-	return filesys_create(file, initial_size);
+	lock_acquire(&file_lock);
+	bool result = filesys_create(file, initial_size);
+	lock_release(&file_lock);
+	return result;
 }
 
 int open (const char *file) {
+	lock_acquire(&file_lock);
 	struct file *opened_file = filesys_open(file);
 	int fd = -1;
 	if (opened_file != NULL) 
 	 	fd = allocate_fd(opened_file, &thread_current()->fd_list);
-	
+	lock_release(&file_lock);
 	return fd;
 }
 
@@ -279,5 +282,8 @@ unsigned tell (int fd) {
 }
 
 bool remove(const char *file) {
-    return filesys_remove(file);
+	lock_acquire(&file_lock);
+	bool result = filesys_remove(file);
+	lock_release(&file_lock);
+    return result;
 }

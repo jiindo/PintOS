@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
+#include "userprog/syscall.h"
 
 #ifdef VM
 #include "vm/vm.h"
@@ -160,9 +161,7 @@ static void
 fdlist_cleanup(struct thread *curr) {
 	if (list_empty(&curr->fd_list)) 
 		return;
-	struct file_descriptor *file_desc = list_entry(list_begin(&curr->fd_list), struct file_descriptor, fd_elem);
-	struct file *running_file = file_desc->file_p;
-	file_close(running_file);
+	
 }
 
 /* A thread function that copies parent's execution context.
@@ -223,8 +222,10 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	lock_acquire(&file_lock);
 	/* And then load the binary */
 	success = load (file_name, &_if);
+	lock_release(&file_lock);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -251,7 +252,10 @@ process_wait (tid_t child_tid UNUSED) {
 	struct thread *child = find_child_by(child_tid);
 	if (TID_ERROR == child || !sema_try_down(&child->wait_sema))
 		return -1;
+
 	sema_down(&child->wait_sema);
+	list_remove(&child->child_elem);
+	sema_up(&child->fork_sema); // 동기화를 위한 종료 세마포어
 	return child->exit_status;
 }
 
@@ -259,9 +263,10 @@ process_wait (tid_t child_tid UNUSED) {
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-	process_cleanup ();
-	list_remove(&curr->child_elem);
 	sema_up(&curr->wait_sema);
+	file_close(curr->executable);
+	sema_down(&curr->fork_sema); // 동기화를 위한 종료 세마포어
+	process_cleanup ();
 }
 
 /* Free the current process's resources. */
@@ -543,8 +548,8 @@ load (const char *file_name, struct intr_frame *if_) {
 done:
 	/* We arrive here whether the load is successful or not. */
 	if (file != NULL) { // 프로세스 실행 중에는 현재 실행 파일을 수정하지 못하게 file_close 제거
-		allocate_fd(file, &thread_current()->fd_list);
 		file_deny_write(file);
+		thread_current()->executable = file;
 	}
 	return success;
 }

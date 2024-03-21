@@ -112,6 +112,7 @@ struct thread {
 	struct semaphore fork_sema;			/* 포크 완료까지 프로세스를 지연시키기 위한 세마포어 */
 	struct semaphore wait_sema;			/* 자식 프로세스 실행 완료까지 프로세스를 지연시키기 위한 세마포어 */
 	int exit_status;					/* 종료 상태 (부모 프로세스에게 알리기 위함) */
+	struct file *executable;			/* 현재 실행하고 있는 프로그램(프로세스 실행 파일) */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
