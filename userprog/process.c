@@ -161,7 +161,14 @@ static void
 fdlist_cleanup(struct thread *curr) {
 	if (list_empty(&curr->fd_list)) 
 		return;
-	
+	for (struct list_elem *cur_fd = list_begin(&curr->fd_list); cur_fd != list_end(&curr->fd_list);) {
+		struct file_descriptor *file_desc = list_entry(cur_fd, struct file_descriptor, fd_elem);
+		struct list_elem *next_fd = list_next(cur_fd);
+		file_close(file_desc->file_p);
+		list_remove(cur_fd);
+		free(file_desc);
+		cur_fd = next_fd;
+	}
 }
 
 /* A thread function that copies parent's execution context.
@@ -229,8 +236,10 @@ process_exec (void *f_name) {
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
-	if (!success)
+	if (!success) {
+		file_close(thread_current()->executable);
 		return -1;
+	}
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -398,6 +407,7 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	thread_current()->executable = file;
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -548,8 +558,9 @@ load (const char *file_name, struct intr_frame *if_) {
 done:
 	/* We arrive here whether the load is successful or not. */
 	if (file != NULL) { // 프로세스 실행 중에는 현재 실행 파일을 수정하지 못하게 file_close 제거
+		if (!success)
+			file_close(file);
 		file_deny_write(file);
-		thread_current()->executable = file;
 	}
 	return success;
 }
