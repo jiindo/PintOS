@@ -11,6 +11,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "threads/malloc.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -229,6 +231,9 @@ thread_create (const char *name, int priority,
 	#endif
 	/* Add to run queue. */
 	thread_unblock (t);
+	t->fd_list = palloc_get_multiple(PAL_ZERO, 2);
+	if (NULL == t->fd_list)
+		return TID_ERROR;
 	if (thread_get_priority() < priority) {
 		thread_yield();
 	}
@@ -559,11 +564,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 	list_init(&t->donors);
 	#ifdef USERPROG
-	list_init(&t->fd_list);
 	t->last_created_fd = 2;
 	list_init(&t->children);
 	sema_init(&t->fork_sema, 0);
 	sema_init(&t->wait_sema, 1);
+	sema_init(&t->exit_sema, 0);
 	#endif
 }
 
@@ -747,14 +752,19 @@ allocate_tid (void) {
 
 #ifdef USERPROG
 int
-allocate_fd(struct file *file, struct list *fd_list) {
+allocate_fd(struct file *file, struct file_descriptor **fd_list) {
 	struct file_descriptor *file_descriptor;
 	file_descriptor = malloc(sizeof(struct file_descriptor));
 	if(file_descriptor == NULL)
 		return -1;
+	if (thread_current()->last_created_fd == FD_CNT_LIMIT - 1) {
+        free(file_descriptor);
+		file_close(file);
+        return -1;
+    }
 	file_descriptor->fd = (thread_current()->last_created_fd)++;
 	file_descriptor->file_p = file;
-	list_push_back(fd_list, &file_descriptor->fd_elem);
+	fd_list[file_descriptor->fd] = file_descriptor;
 	return file_descriptor->fd;
 }
 #endif

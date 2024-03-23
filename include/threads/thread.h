@@ -30,6 +30,8 @@ typedef tid_t pid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+#define FD_CNT_LIMIT 128
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -105,12 +107,13 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
-	struct list fd_list;				/* 파일 디스크립터 리스트 */
+	struct file_descriptor **fd_list;	/* 파일 디스크립터 리스트 */
 	int last_created_fd;				/* 마지막으로 생성된 파일 디스크립터 */
 	struct list children;				/* 자식 프로세스 리스트 */
 	struct list_elem child_elem; 		/* 자식 프로세스 리스트에 들어갈 원소 */
 	struct semaphore fork_sema;			/* 포크 완료까지 프로세스를 지연시키기 위한 세마포어 */
 	struct semaphore wait_sema;			/* 자식 프로세스 실행 완료까지 프로세스를 지연시키기 위한 세마포어 */
+	struct semaphore exit_sema;			/* 자식 프로세스 실행 완료까지 프로세스를 지연시키기 위한 세마포어 */
 	int exit_status;					/* 종료 상태 (부모 프로세스에게 알리기 위함) */
 	struct file *executable;			/* 현재 실행하고 있는 프로그램(프로세스 실행 파일) */
 #endif
@@ -127,7 +130,6 @@ struct thread {
 struct file_descriptor {
 	int fd;
 	struct file *file_p;
-	struct list_elem fd_elem;
 };
 
 /* If false (default), use round-robin scheduler.
@@ -175,7 +177,7 @@ bool high_priority_first_for_donor (const struct list_elem *a_, const struct lis
 bool high_priority_later (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 
 #ifdef USERPROG
-int allocate_fd(struct file *file, struct list *fd_list);
+int allocate_fd(struct file *file, struct file_descriptor **fd_list);
 #endif
 
 #endif /* threads/thread.h */

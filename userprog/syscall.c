@@ -82,12 +82,6 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	/**
-	 * TODO
-	 * 1. 시스템 콜 번호를 받아온다.
-	 * 2. 각 번호에 맞게 분기한다.
-	 * 3. 각 시스템 콜에 맞는 코드를 작성한다.
-	 */
 	int syscall_num = f->R.rax;
 	switch (syscall_num) {
 		case SYS_HALT:
@@ -140,22 +134,19 @@ syscall_handler (struct intr_frame *f UNUSED) {
 }
 
 struct file_descriptor *find_file_descriptor(int fd) {
-	struct list *fd_list = &thread_current()->fd_list;
+	struct file_descriptor **fd_list = thread_current()->fd_list;
 	ASSERT(fd_list != NULL);
 	ASSERT(fd > 1);
-	if (list_empty(fd_list)) return NULL;
-	
-	struct file_descriptor *file_descriptor;
-	struct list_elem *curr_fd_elem = list_begin(fd_list);
-	ASSERT(curr_fd_elem != NULL);
-	while (curr_fd_elem != list_tail(fd_list)) {
-		file_descriptor = list_entry(curr_fd_elem, struct file_descriptor, fd_elem);
-		if (file_descriptor->fd == fd) {
-			return file_descriptor;
-		}
-		curr_fd_elem = list_next(curr_fd_elem);
-	}
-	return NULL;
+	return fd_list[fd];
+}
+
+void remove_file_descriptor(int fd) {
+	struct file_descriptor **fd_list = thread_current()->fd_list;
+	if (fd_list[fd] == NULL)
+		return;
+	file_close(fd_list[fd]->file_p);
+	free(fd_list[fd]);
+	fd_list[fd] = NULL;
 }
 
 void halt() {
@@ -217,28 +208,24 @@ int write(int fd, void *buffer, unsigned length) {
 bool create (const char *file, unsigned initial_size) {
 	if(*file == '\0')
 		exit(-1);
-	lock_acquire(&file_lock);
 	bool result = filesys_create(file, initial_size);
-	lock_release(&file_lock);
 	return result;
 }
 
 int open (const char *file) {
-	lock_acquire(&file_lock);
 	struct file *opened_file = filesys_open(file);
 	int fd = -1;
-	if (opened_file != NULL) 
-	 	fd = allocate_fd(opened_file, &thread_current()->fd_list);
-	lock_release(&file_lock);
+	if (opened_file != NULL) {
+		lock_acquire(&file_lock);
+	 	fd = allocate_fd(opened_file, thread_current()->fd_list);
+		lock_release(&file_lock);
+	}
 	return fd;
 }
 
 void close (int fd) {
-	struct file_descriptor *file_desc = find_file_descriptor(fd);
-	if (file_desc == NULL) return;
-	file_close(file_desc->file_p);
-	list_remove(&file_desc->fd_elem);
-	free(file_desc);
+	if (1 >= fd) return;
+	remove_file_descriptor(fd);
 }
 
 int filesize (int fd) {

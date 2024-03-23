@@ -20,6 +20,7 @@
 #include "threads/synch.h"
 #include "intrinsic.h"
 #include "userprog/syscall.h"
+#include "threads/malloc.h"
 
 #ifdef VM
 #include "vm/vm.h"
@@ -137,38 +138,32 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 static void
 duplicate_fd_list(struct thread *dest, struct thread *org) {
-	if (list_empty(&org->fd_list))
-		return;
-
-	for (struct list_elem *cur_fd = list_begin(&org->fd_list); 
-		cur_fd != list_end(&org->fd_list); 
-		cur_fd = list_next(cur_fd)
-	) {
-		struct file_descriptor *org_file_desc = list_entry(cur_fd, struct file_descriptor, fd_elem);
-		struct file_descriptor *cpy_file_desc = malloc(sizeof(struct file_descriptor));
+	struct file_descriptor **org_fd_list = org->fd_list;
+	struct file_descriptor **dest_fd_list = dest->fd_list;
+	for (int i = 2; i < FD_CNT_LIMIT; i++) {
+		struct file_descriptor *org_file_desc = org_fd_list[i];
+		if (org_file_desc == NULL)
+			continue;
+		struct file_descriptor *cpy_file_desc = calloc(sizeof(struct file_descriptor), 1);
 		cpy_file_desc->fd = org_file_desc->fd;
 		cpy_file_desc->file_p = file_duplicate(org_file_desc->file_p);
 		if (cpy_file_desc->file_p == NULL) {
 			free(cpy_file_desc);
 			continue;
 		}
-		list_push_back(&dest->fd_list, &cpy_file_desc->fd_elem);
+		dest_fd_list[i] = cpy_file_desc;
 	}
 	dest->last_created_fd = org->last_created_fd;
 }
 
 static void 
 fdlist_cleanup(struct thread *curr) {
-	if (list_empty(&curr->fd_list)) 
+	struct file_descriptor **fd_list = curr->fd_list;
+	if (fd_list == NULL)
 		return;
-	for (struct list_elem *cur_fd = list_begin(&curr->fd_list); cur_fd != list_end(&curr->fd_list);) {
-		struct file_descriptor *file_desc = list_entry(cur_fd, struct file_descriptor, fd_elem);
-		struct list_elem *next_fd = list_next(cur_fd);
-		file_close(file_desc->file_p);
-		list_remove(cur_fd);
-		free(file_desc);
-		cur_fd = next_fd;
-	}
+	for (int fd = 2; fd < FD_CNT_LIMIT; fd++)
+		close(fd);
+	palloc_free_multiple(fd_list, 2);
 }
 
 /* A thread function that copies parent's execution context.
@@ -198,6 +193,8 @@ __do_fork (void *aux) {
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
+	if (parent->last_created_fd == FD_CNT_LIMIT)
+		goto error;
 	duplicate_fd_list(current, parent);
 	sema_up(&current->fork_sema);
 	process_init ();
@@ -238,6 +235,7 @@ process_exec (void *f_name) {
 	palloc_free_page (file_name);
 	if (!success) {
 		file_close(thread_current()->executable);
+		thread_current()->executable = NULL;
 		return -1;
 	}
 
@@ -264,7 +262,7 @@ process_wait (tid_t child_tid UNUSED) {
 
 	sema_down(&child->wait_sema);
 	list_remove(&child->child_elem);
-	sema_up(&child->fork_sema); // 동기화를 위한 종료 세마포어
+	sema_up(&child->exit_sema); // 동기화를 위한 종료 세마포어
 	return child->exit_status;
 }
 
@@ -274,7 +272,8 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	sema_up(&curr->wait_sema);
 	file_close(curr->executable);
-	sema_down(&curr->fork_sema); // 동기화를 위한 종료 세마포어
+	sema_down(&curr->exit_sema); // 동기화를 위한 종료 세마포어
+	fdlist_cleanup(curr);
 	process_cleanup ();
 }
 
@@ -286,8 +285,6 @@ process_cleanup (void) {
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);
 #endif
-	fdlist_cleanup(curr);
-
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
 	 * to the kernel-only page directory. */
@@ -407,7 +404,6 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
-	thread_current()->executable = file;
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -552,16 +548,14 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->R.rdi = argc;
 	if_->R.rsi = (uint64_t) *rsp + sizeof(void *);
 
+	file_deny_write(file);
+	thread_current()->executable = file;
+
 	// hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true); // 시작 지점, 출력할 데이터가 담겨있는 포인터, 출력할 크기, (추가 내용) 아스키 코드로 변환 여부)
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	if (file != NULL) { // 프로세스 실행 중에는 현재 실행 파일을 수정하지 못하게 file_close 제거
-		if (!success)
-			file_close(file);
-		file_deny_write(file);
-	}
 	return success;
 }
 
