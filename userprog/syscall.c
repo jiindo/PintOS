@@ -213,13 +213,13 @@ bool create (const char *file, unsigned initial_size) {
 }
 
 int open (const char *file) {
+	lock_acquire(&file_lock);
 	struct file *opened_file = filesys_open(file);
 	int fd = -1;
 	if (opened_file != NULL) {
-		lock_acquire(&file_lock);
 	 	fd = allocate_fd(opened_file, thread_current()->fd_list);
-		lock_release(&file_lock);
 	}
+	lock_release(&file_lock);
 	return fd;
 }
 
