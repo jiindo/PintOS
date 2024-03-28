@@ -95,8 +95,7 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 }
 
 /* Insert PAGE into spt with validation. */
-bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED,
+bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
@@ -196,14 +195,12 @@ vm_do_claim_page (struct page *page) {
 }
 
 /* SPT를 초기화한다. */
-void
-supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED) {
 	hash_init (&spt->pages, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
-bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
+bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
 }
 
@@ -214,6 +211,7 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	 * TODO: writeback all the modified contents to the storage. */
 }
 
+// 주어진 aux 데이터에서 해시 요소에 대한 해시 값을 계산하고 반환
 // 해시 테이블 초기화할 때 해시 값을 구해주는 함수의 포인터
 unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED) {
 	const struct page *p = hash_entry (p_, struct page, hash_elem);
@@ -230,10 +228,10 @@ bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *au
 // 페이지를 해시 테이블에 삽입한다.
 bool insert_page(struct hash *pages, struct page *page) {
 	if (hash_insert(pages, &page->hash_elem) != NULL) {
-		return false;
+		return true;
 	}
 	else {
-		return true;
+		return false;
 	}
 }
 
