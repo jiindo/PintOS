@@ -218,7 +218,8 @@ unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED) {
 	return hash_bytes (&p->va, sizeof p->va);
 }
 
-// 해시 테이블에서 두 페이지를 비교할 때 사용하는 함수
+// 해시 테이블을 초기화 할 때, 해시 요소를 비교하는 함수의 포인터
+// a가 b보다 작으면 true, 그렇지 않으면 false를 반환한다.
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED) {
 	const struct page *a = hash_entry (a_, struct page, hash_elem);
 	const struct page *b = hash_entry (b_, struct page, hash_elem);
