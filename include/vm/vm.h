@@ -49,6 +49,7 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
+	struct hash_elem *elem;     /* Current hash element in current bucket. */
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -64,8 +65,9 @@ struct page {
 
 /* The representation of "frame" */
 struct frame {
-	void *kva;
-	struct page *page;
+	void *kva;	// 커널의 가상 주소
+	struct page *page;	// 페이지 구조체에 대한 포인터
+	struct list_elem frame_elem;	// 프레임 리스트 요소
 };
 
 /* The function table for page operations.

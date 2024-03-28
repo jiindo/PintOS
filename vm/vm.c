@@ -74,15 +74,15 @@ err:
 struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
-	struct page* page = (struct page*)malloc(sizeof(struct page));
-	struct hash_elem* e;
+	page = malloc(sizeof(struct page));
+	struct hash_elem *e;
 
-	// va가 가리키는 가상 페이지의 시작 지점을 반환한다.
-	page->va = pg_round_down(va);
-
+	// va가 가리키는 가상 페이지의 시작 지점을 va에 저장한다.
 	// 해시 테이블에서 va에 해당하는 페이지를 찾는다.
+	page->va = pg_round_down(va);
 	e = hash_find(&spt->pages, &page->hash_elem);
-
+	
+	// 가상 메모리를 찾기 위해 선언한 페이지를 해제한다.
 	free(page);
 
 	// 찾은 페이지를 반환한다.
@@ -99,7 +99,12 @@ bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-	return insert_page(&spt->pages, page);
+	// 페이지를 해시 테이블에 삽입한다.
+	if (hash_insert(&spt->pages, &page->hash_elem) == NULL) {
+		return true;
+	}
+	else
+		return false;
 }
 
 void
@@ -127,14 +132,21 @@ vm_evict_frame (void) {
 	return NULL;
 }
 
-/* palloc() and get frame. If there is no available page, evict the page
- * and return it. This always return valid address. That is, if the user pool
- * memory is full, this function evicts the frame to get the available memory
- * space.*/
-static struct frame *
-vm_get_frame (void) {
+/* palloc() 함수를 호출해 프레임을 가져온다.
+ * 사용 가능한 페이지가 없으면 페이지를 evict한 후 리턴한다(항상 유효한 주소를 반환).
+ * 즉, 유저 풀 메모리가 가득 차면 프레임을 evict하여 사용 가능한 메모리 공간을 가져온다.
+*/
+static struct frame *vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+
+	// 프레임을 할당한다.
+	void *kva = palloc_get_page(PAL_USER);
+	if (kva == NULL) 
+		PANIC("User pool is full!");
+	
+	frame = malloc(sizeof(struct frame));
+	frame->kva = kva;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -171,18 +183,20 @@ vm_dealloc_page (struct page *page) {
 	free (page);
 }
 
-/* Claim the page that allocate on VA. */
-bool
-vm_claim_page (void *va UNUSED) {
+// 인자로 주어진 va에 페이지를 할당하고, 해당 페이지에 프레임을 할당한다.
+bool vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-
+	// 페이지를 할당한다.
+	page = spt_find_page(&thread_current()->spt, va);
+	if (page == NULL) 
+		return false;
+	
 	return vm_do_claim_page (page);
 }
 
-/* Claim the PAGE and set up the mmu. */
-static bool
-vm_do_claim_page (struct page *page) {
+// 인자로 주어진 page에 물리 메모리 프레임을 할당한다.
+static bool vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
 
 	/* Set links */
@@ -190,6 +204,8 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	struct thread *cur = thread_current();
+	pml4_set_page(cur->pml4, page->va, frame->kva, page->writable);
 
 	return swap_in (page, frame->kva);
 }
@@ -215,7 +231,7 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 // 해시 테이블 초기화할 때 해시 값을 구해주는 함수의 포인터
 unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED) {
 	const struct page *p = hash_entry (p_, struct page, hash_elem);
-	return hash_bytes (&p->va, sizeof p->va);
+	return hash_bytes(&p->va, sizeof p->va);
 }
 
 // 해시 테이블을 초기화 할 때, 해시 요소를 비교하는 함수의 포인터
@@ -224,24 +240,4 @@ bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *au
 	const struct page *a = hash_entry (a_, struct page, hash_elem);
 	const struct page *b = hash_entry (b_, struct page, hash_elem);
 	return a->va < b->va;
-}
-
-// 페이지를 해시 테이블에 삽입한다.
-bool insert_page(struct hash *pages, struct page *page) {
-	if (hash_insert(pages, &page->hash_elem) != NULL) {
-		return true;
-	}
-	else {
-		return false;
-	}
-}
-
-// 페이지를 해시 테이블에서 삭제한다.
-bool delete_page(struct hash *pages, struct page *p) {
-	if (hash_delete(pages, &page->hash_elem) != NULL) {
-		return true;
-	}
-	else {
-		return false;
-	}
 }
