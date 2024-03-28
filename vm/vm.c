@@ -94,7 +94,7 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 	}
 }
 
-/* Insert PAGE into spt with validation. */
+// SPT에 페이지를 삽입한다.
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
@@ -239,9 +239,9 @@ bool insert_page(struct hash *pages, struct page *page) {
 // 페이지를 해시 테이블에서 삭제한다.
 bool delete_page(struct hash *pages, struct page *p) {
 	if (hash_delete(pages, &page->hash_elem) != NULL) {
-		return false;
+		return true;
 	}
 	else {
-		return true;
+		return false;
 	}
 }
