@@ -93,8 +93,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-
-	return succ;
+	return insert_page(&spt->pages, page);
 }
 
 void
@@ -221,3 +220,22 @@ bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *au
 	return a->va < b->va;
 }
 
+// 페이지를 해시 테이블에 삽입한다.
+bool insert_page(struct hash *pages, struct page *page) {
+	if (hash_insert(pages, &page->hash_elem) != NULL) {
+		return false;
+	}
+	else {
+		return true;
+	}
+}
+
+// 페이지를 해시 테이블에서 삭제한다.
+bool delete_page(struct hash *pages, struct page *p) {
+	if (hash_delete(pages, &page->hash_elem) != NULL) {
+		return false;
+	}
+	else {
+		return true;
+	}
+}
