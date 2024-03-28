@@ -60,13 +60,31 @@ err:
 	return false;
 }
 
-/* Find VA from spt and return page. On error, return NULL. */
-struct page *
-spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
+/* 
+* 인자로 들어온 SPT부터 가상 주소(va)와 대응되는 페이지 구조체를 찾아서 반환한다.
+* 실패하면 NULL을 반환한다.
+*/
+struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
+	struct page* page = (struct page*)malloc(sizeof(struct page));
+	struct hash_elem* e;
 
-	return page;
+	// va가 가리키는 가상 페이지의 시작 지점을 반환한다.
+	page->va = pg_round_down(va);
+
+	// 해시 테이블에서 va에 해당하는 페이지를 찾는다.
+	e = hash_find(&spt->pages, &page->hash_elem);
+
+	free(page);
+
+	// 찾은 페이지를 반환한다.
+	if (e != NULL) {
+		return hash_entry(e, struct page, hash_elem);
+	}
+	else {
+		return NULL;
+	}
 }
 
 /* Insert PAGE into spt with validation. */
@@ -171,7 +189,7 @@ vm_do_claim_page (struct page *page) {
 	return swap_in (page, frame->kva);
 }
 
-/* Initialize new supplemental page table */
+/* SPT를 초기화한다. */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	hash_init (&spt->pages, page_hash, page_less, NULL);
