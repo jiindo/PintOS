@@ -3,6 +3,13 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "threads/palloc.h"
+#include "userprog/pagedir.h"
+#include "userprog/process.h"
+#include "filesys/file.h"
+#include "swap.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
