@@ -2,9 +2,10 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
-#include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "lib/kernel/hash.h"
+#include "lib/kernel/list.h"
+
 
 enum vm_type {
 	/* page not initialized */
@@ -49,7 +50,7 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-	struct hash_elem *elem;     /* Current hash element in current bucket. */
+	struct hash_elem hash_elem;     /* Current hash element in current bucket. */
 	
 	//writable 필드를 추가한다. -> vm_alloc_page_with_initializer
 	bool writable;
@@ -93,7 +94,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
-	struct hash pages;
+	struct hash spt_hash;
 };
 
 #include "threads/thread.h"
