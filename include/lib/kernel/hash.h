@@ -66,6 +66,7 @@ struct hash {
 struct hash_iterator {
 	struct hash *hash;          /* The hash table. */
 	struct list *bucket;        /* Current bucket. */
+	struct hash_elem *elem;     /* Current hash element in current bucket. */
 };
 
 /* Basic life cycle. */
