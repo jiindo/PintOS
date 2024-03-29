@@ -9,7 +9,10 @@
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include "filesys/file.h"
+#include "include/threads/thread.h"
+#include "threads/mmu.h"
 #include "swap.h"
+#include "uninit.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -43,12 +46,14 @@ page_get_type (struct page *page) {
 static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
+unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
-bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
+bool vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
@@ -57,11 +62,30 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+		// TODO: Create the page, fetch the initialier according to the VM type,
+		struct page *p = malloc (sizeof (struct page));
+
+		// TODO: and then create "uninit" page struct by calling uninit_new.
+		bool (*page_initializer)(struct page *, enum vm_type, void *);
+		
+		switch (VM_TYPE(type)) {
+			// case VM_UNINIT:
+			// 	page_initializer = uninit.page_initializer;
+			// 	break;
+			case VM_ANON:
+				page_initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				page_initializer = file_initializer;
+				break;
+		}
+		uninit_new(p, upage, init, type, aux, page_initializer);
+
+		// TODO:  You should modify the field after calling the uninit_new. */
+		p->writable = writable;
 
 		/* TODO: Insert the page into the spt. */
+		return spt_insert_page(spt, p);
 	}
 err:
 	return false;
@@ -140,8 +164,11 @@ static struct frame *vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
 
-	// 프레임을 할당한다.
+	// user pool에서 새로운 페이지를 가져온다.
 	void *kva = palloc_get_page(PAL_USER);
+
+	// palloc_get_page가 NULL을 반환한 것은 페이지가 꽉 찼다는 뜻
+	// 따라서 프레임을 evict하여 사용 가능한 메모리 공간을 가져온다.
 	if (kva == NULL) 
 		PANIC("User pool is full!");
 	
@@ -154,8 +181,7 @@ static struct frame *vm_get_frame (void) {
 }
 
 /* Growing the stack. */
-static void
-vm_stack_growth (void *addr UNUSED) {
+static void vm_stack_growth (void *addr UNUSED) {
 }
 
 /* Handle the fault on write_protected page */
@@ -188,6 +214,8 @@ bool vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
 	// 페이지를 할당한다.
+	
+	//va에 해당하는 페이지를 찾는다.
 	page = spt_find_page(&thread_current()->spt, va);
 	if (page == NULL) 
 		return false;
@@ -204,9 +232,11 @@ static bool vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	// 가상 주소와 물리 주소의 매핑 정보를 페이지 테이블에 추가
 	struct thread *cur = thread_current();
 	pml4_set_page(cur->pml4, page->va, frame->kva, page->writable);
 
+	// 페이지와 프레임의 가상 주소를 인자로 받아 페이지를 스왑 영역에서 물리 메모리로 가져오는 역할
 	return swap_in (page, frame->kva);
 }
 

@@ -50,6 +50,9 @@ struct page {
 
 	/* Your implementation */
 	struct hash_elem *elem;     /* Current hash element in current bucket. */
+	
+	//writable 필드를 추가한다. -> vm_alloc_page_with_initializer
+	bool writable;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
