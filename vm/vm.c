@@ -9,9 +9,12 @@
 #include "include/threads/mmu.h"
 #include "userprog/process.h"
 #include "threads/vaddr.h"
+#include "lib/string.h"
+
 
 unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+void spt_kill (struct hash_elem *e, void *aux UNUSED);
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -166,13 +169,12 @@ vm_evict_frame (void) {
 static struct frame *vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	void *kva = palloc_get_page(PAL_USER); // user pool에서 새로운 physical page를 가져온다.
+	frame = malloc(sizeof(struct frame));
+	frame->kva = palloc_get_page(PAL_USER); // user pool에서 새로운 physical page를 가져온다.
 
-    if (kva == NULL)   // page 할당 실패 -> 나중에 swap_out 처리
+    if (frame->kva == NULL)   // page 할당 실패 -> 나중에 swap_out 처리
         PANIC("todo"); // OS를 중지시키고, 소스 파일명, 라인 번호, 함수명 등의 정보와 함께 사용자 지정 메시지를 출력
 
-    frame = malloc(sizeof(struct frame)); // 프레임 할당
-    frame->kva = kva;                      // 프레임 멤버 초기화
 	frame->page = NULL;                    // 프레임 멤버 초기화
 
     ASSERT(frame != NULL);
@@ -269,16 +271,74 @@ void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED) {
 	hash_init(&spt->spt_hash, page_hash, page_less, NULL);
 }
 
-/* Copy supplemental page table from src to dst */
+/* 
+* src부터 dst까지 SPT를 복사한다.
+* 자식이 부모의 실행 context를 상속할 때(fork) 사용된다. 
+* 초기화되지 않은(uninit) 페이지를 할당하고 이를 바로 claim해야 한다.
+*/
 bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
+
+	struct hash_iterator i;
+	hash_first(&i, &src->spt_hash);
+
+	while(hash_next(&i)){
+		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+		struct page *dst_page = malloc(sizeof(struct page));
+
+		enum vm_type type = src_page->operations->type;	// 부모의 페이지 타입을 받아온다.
+		void *va = src_page->va;	// 부모의 가상 주소를 받아온다.
+		bool writable = src_page->writable;	
+
+		// 페이지 타입이 uninit인 경우
+		if(type == VM_UNINIT || src_page -> frame == NULL){
+			// 초기화되지 않은 페이지를 할당하고 claim한다.
+			vm_initializer *init = src_page->uninit.init;
+			void *aux = src_page->uninit.aux;
+			if(!vm_alloc_page_with_initializer(type, va, writable, init, aux)){
+				return false;
+			}
+		}
+		else{	// 페이지 타입에 맞게 페이지를 할당하기 위해 do_claim_page를 호출한다.
+			switch(type){
+				case VM_ANON:
+					if(!vm_alloc_page_with_initializer(type, va, writable, NULL, NULL)){
+						return false;
+					}
+					if(!vm_claim_page(va)){
+						return false;
+					}
+					break;
+				case VM_FILE:
+					if(!vm_alloc_page_with_initializer(type, va, writable, NULL, NULL)){
+						return false;
+					}
+					if(!vm_claim_page(va)){
+						return false;
+					}
+					break;
+				default:
+					return false;
+			}
+		}
+		dst_page = spt_find_page(dst, va);
+		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+
+	}
+	return true;
 }
 
-/* Free the resource hold by the supplemental page table */
-void
-supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
+/* 
+* Spt에 의해 유지되던 모든 자원을 해제한다.
+* process가 exit할 때(userprog/process.c의 process_exit()) 호출된다. 
+* 페이지 엔트리를 반복하면서 테이블의 페이지에 대해 destroy(page)를 호출한다.
+* 이 함수에서 실제 페이지 테이블(pml4)와 물리 주소(palloc된 메모리)에 대해 걱정할 필요는 없다
+* 		-> (spt가 cleanup 된 후 호출자가 clean 하기 때문).
+*/
+void supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	hash_clear(&spt->spt_hash, spt_kill);
 }
 
 // 주어진 aux 데이터에서 해시 요소에 대한 해시 값을 계산하고 반환
@@ -294,4 +354,10 @@ bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *au
 	const struct page *a = hash_entry (a_, struct page, hash_elem);
 	const struct page *b = hash_entry (b_, struct page, hash_elem);
 	return a->va < b->va;
+}
+
+void spt_kill (struct hash_elem *e, void *aux UNUSED) {
+	struct page *page = hash_entry(e, struct page, hash_elem);
+	destroy(page);
+	free(page);
 }
