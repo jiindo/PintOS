@@ -130,9 +130,6 @@ page_fault (struct intr_frame *f) {
 
 	fault_addr = (void *) rcr2();
 
-	//다른 경우는 생각하지 않고 fault_addr가 잘못된 주소를 참조하려 할 경우만 생각하여 exit한다.
-	// if(fault_addr == NULL || !is_user_vaddr(fault_addr) || pml4_get_page(thread_current()->pml4, fault_addr) == NULL)
-		// exit(-1);
 	
 	/* Turn interrupts back on (they were only off so that we could
 	   be assured of reading CR2 before it changed). */
@@ -144,14 +141,14 @@ page_fault (struct intr_frame *f) {
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
 
-	if (user) {
-		// exit(-1);
-	}
 #ifdef VM
 	/* For project 3 and later. */
 	if (vm_try_handle_fault (f, fault_addr, user, write, not_present))
 		return;
 #endif
+	if (user) {
+		exit(-1);
+	}
 
 	/* Count page faults. */
 	page_fault_cnt++;

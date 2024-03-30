@@ -82,6 +82,8 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
+	if(f->rip == NULL || !is_user_vaddr(f->rip) || pml4_get_page(thread_current()->pml4, f->rip) == NULL)
+		 exit(-1);
 	int syscall_num = f->R.rax;
 	switch (syscall_num) {
 		case SYS_HALT:
