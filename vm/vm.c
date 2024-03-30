@@ -166,13 +166,12 @@ vm_evict_frame (void) {
 static struct frame *vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	void *kva = palloc_get_page(PAL_USER); // user pool에서 새로운 physical page를 가져온다.
+	frame = malloc(sizeof(struct frame));
+	frame->kva = palloc_get_page(PAL_USER); // user pool에서 새로운 physical page를 가져온다.
 
-    if (kva == NULL)   // page 할당 실패 -> 나중에 swap_out 처리
+    if (frame->kva == NULL)   // page 할당 실패 -> 나중에 swap_out 처리
         PANIC("todo"); // OS를 중지시키고, 소스 파일명, 라인 번호, 함수명 등의 정보와 함께 사용자 지정 메시지를 출력
 
-    frame = malloc(sizeof(struct frame)); // 프레임 할당
-    frame->kva = kva;                      // 프레임 멤버 초기화
 	frame->page = NULL;                    // 프레임 멤버 초기화
 
     ASSERT(frame != NULL);

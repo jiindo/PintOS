@@ -146,6 +146,9 @@ page_fault (struct intr_frame *f) {
 	if (vm_try_handle_fault (f, fault_addr, user, write, not_present))
 		return;
 #endif
+	if(fault_addr == NULL || !is_user_vaddr(fault_addr) || pml4_get_page(thread_current()->pml4, fault_addr) == NULL)
+		 exit(-1);
+
 	if (user) {
 		exit(-1);
 	}
