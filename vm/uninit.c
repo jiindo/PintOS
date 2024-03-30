@@ -23,21 +23,20 @@ static const struct page_operations uninit_ops = {
 };
 
 /* DO NOT MODIFY this function */
-void
-uninit_new (struct page *page, void *va, vm_initializer *init,
-		enum vm_type type, void *aux,
+//매개변수로 받은 page 구조체를 uninit type으로 만든다.
+void uninit_new (struct page *page, void *va, vm_initializer *init,	enum vm_type type, void *aux,
 		bool (*initializer)(struct page *, enum vm_type, void *)) {
 	ASSERT (page != NULL);
 
 	*page = (struct page) {
-		.operations = &uninit_ops,
+		.operations = &uninit_ops,	//uninit_ops에 swap_in을 보면 uninit_initialize가 들어가있다.
 		.va = va,
 		.frame = NULL, /* no frame for now */
 		.uninit = (struct uninit_page) {
-			.init = init,
+			.init = init,	//load_segment 함수에서 인자로 lazy_load_segment를 넣어준다.
 			.type = type,
 			.aux = aux,
-			.page_initializer = initializer,
+			.page_initializer = initializer,	//anon_initializer, file_initializer, page_cache_initializer 중 하나
 		}
 	};
 }
@@ -65,4 +64,5 @@ uninit_destroy (struct page *page) {
 	struct uninit_page *uninit UNUSED = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
+	return;
 }
