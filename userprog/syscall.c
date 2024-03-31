@@ -164,8 +164,10 @@ void exit(int status) {
 }
  
 int read (int fd, void *buffer, unsigned size) {
-	if(fd <0)
+	
+	if(fd <0){
 		exit(-1);
+	}
 	int byte = 0;
 	if (fd == 0) {
 		char *_buffer = buffer;
@@ -173,8 +175,9 @@ int read (int fd, void *buffer, unsigned size) {
 			_buffer[byte++] = input_getc();
 		}
 	}
-	else if (fd == 1)
+	else if (fd == 1){
 		return -1;
+	}
 	else { // 표준 입출력이 아닐 때
 		lock_acquire(&file_lock);
 		struct file_descriptor *file_desc = find_file_descriptor(fd);
