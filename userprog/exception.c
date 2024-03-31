@@ -147,16 +147,9 @@ page_fault (struct intr_frame *f) {
 		return;
 #endif
 
-	if(fault_addr == NULL || !is_user_vaddr(fault_addr) || pml4_get_page(thread_current()->pml4, fault_addr) == NULL)
+	if(fault_addr == NULL || !is_user_vaddr(fault_addr) || pml4_get_page(thread_current()->pml4, fault_addr) == NULL || user)
 		 exit(-1);
 
-	if (user) {
-		exit(-1);
-	}
-
-	if (user) 
-		exit(-1);
-	
 	/* Count page faults. */
 	page_fault_cnt++;
 

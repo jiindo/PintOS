@@ -166,7 +166,7 @@ void exit(int status) {
 int read (int fd, void *buffer, unsigned size) {
 	
 	if(fd <0){
-		exit(-1);
+		return -1;
 	}
 	int byte = 0;
 	if (fd == 0) {
