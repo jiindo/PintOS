@@ -227,10 +227,10 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
-	lock_acquire(&file_lock);
+	
 	/* And then load the binary */
 	success = load (file_name, &_if);
-	lock_release(&file_lock);
+	
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);

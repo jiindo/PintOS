@@ -83,6 +83,9 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	int syscall_num = f->R.rax;
+	#ifndef VM
+		thread_current()->rsp = f->rsp;
+	#endif
 	switch (syscall_num) {
 		case SYS_HALT:
 			halt();
@@ -252,7 +255,7 @@ int exec (const char *cmd_line) {
 		exit(-1);
 	}
 	strlcpy(fn_copy, cmd_line, size);
-	if (process_exec(fn_copy) == -1) {
+	if (process_exec(fn_copy) == -1) {	
 		exit(-1);
 	}
 }

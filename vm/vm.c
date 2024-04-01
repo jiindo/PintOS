@@ -186,6 +186,7 @@ static struct frame *vm_get_frame (void) {
 
 /* Growing the stack. */
 static void vm_stack_growth (void *addr UNUSED) {
+	vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr), true);
 }
 
 /* Handle the fault on write_protected page */
@@ -213,7 +214,17 @@ bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 
 	//접근한 메모리의 물리적 페이지가 존재하지 않는 경우 (lazy load)
 	if(not_present){
-
+		void *rsp = f->rsp;
+		if(!user)
+			rsp = thread_current()->rsp;
+		
+		if(USER_STACK-(1<<20) <= rsp-8 && rsp-8 == addr && addr <= USER_STACK){
+			vm_stack_growth(addr);
+		}
+		else if(USER_STACK-(1<<20) <= rsp && rsp <= addr && addr <= USER_STACK){
+			vm_stack_growth(addr);
+		}
+				
 		// 주소에 대응하는 페이지 구조체를 찾는다.
 		page = spt_find_page(spt, addr);
 
