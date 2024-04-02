@@ -186,7 +186,7 @@ static struct frame *vm_get_frame (void) {
 
 /* Growing the stack. */
 static void vm_stack_growth (void *addr UNUSED) {
-	vm_alloc_page(VM_ANON|VM_MARKER_0, pg_round_down(addr), true);
+ 	vm_alloc_page(VM_ANON | VM_MARKER_0, pg_round_down(addr), 1);
 }
 
 /* Handle the fault on write_protected page */
@@ -209,6 +209,7 @@ bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 
 	if (addr == NULL)
 		return false;
+	
 	if (is_kernel_vaddr(addr))
 		return false;
 
@@ -221,7 +222,7 @@ bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		if(USER_STACK-(1<<20) <= rsp-8 && rsp-8 == addr && addr <= USER_STACK){
 			vm_stack_growth(addr);
 		}
-		else if(USER_STACK-(1<<20) <= rsp && rsp <= addr && addr <= USER_STACK){
+		   else if (USER_STACK - (1 << 20) <= rsp && rsp <= addr && addr <= USER_STACK){
 			vm_stack_growth(addr);
 		}
 				
@@ -311,7 +312,25 @@ bool supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
             continue;
         }
 
-        /* 2) type이 uninit이 아니면 */
+		/* 2) type이 file-backed이면 */
+		if (type == VM_FILE)
+        {
+            struct lazy_load_arg *file_aux = malloc(sizeof(struct lazy_load_arg));
+            file_aux->file = src_page->file.file;
+            file_aux->ofs = src_page->file.ofs;
+            file_aux->read_bytes = src_page->file.read_bytes;
+            file_aux->zero_bytes = src_page->file.zero_bytes;
+            if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, file_aux))
+                return false;
+            struct page *file_page = spt_find_page(dst, upage);
+            file_backed_initializer(file_page, type, NULL);
+            file_page->frame = src_page->frame;
+            pml4_set_page(thread_current()->pml4, file_page->va, src_page->frame->kva, src_page->writable);
+            continue;
+        }
+
+
+        /* 3) type이 uninit이 아니면 */
         if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
             // init이랑 aux는 Lazy Loading에 필요함
             // 지금 만드는 페이지는 기다리지 않고 바로 내용을 넣어줄 것이므로 필요 없음

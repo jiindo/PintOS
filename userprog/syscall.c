@@ -19,6 +19,7 @@ void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 struct file_descriptor *find_file_descriptor(int fd);
 
+
 void halt ();
 void exit (int status);
 int read (int fd, void *buffer, unsigned size);
@@ -33,6 +34,8 @@ int exec (const char *cmd_line);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 bool remove(const char *file);
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offseet);
+void munmap(void *addr);
 
 /* Reads a byte at user virtual address UADDR.
  * UADDR must be below KERN_BASE.
@@ -83,7 +86,7 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	int syscall_num = f->R.rax;
-	#ifndef VM
+	#ifdef VM
 		thread_current()->rsp = f->rsp;
 	#endif
 	switch (syscall_num) {
@@ -131,9 +134,43 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_CLOSE:
 			close(f->R.rdi);
 			break;
+		case SYS_MMAP:
+			f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+			break;
+		case SYS_MUNMAP:
+        	munmap(f->R.rdi);
+        	break;
 		default:
 			break;
 	}
+}
+
+void munmap(void *addr)
+{
+    do_munmap(addr);
+}
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset){
+	if (!addr || addr != pg_round_down(addr))
+        return NULL;
+
+    if (offset != pg_round_down(offset))
+        return NULL;
+
+    if (!is_user_vaddr(addr) || !is_user_vaddr(addr + length))
+        return NULL;
+
+    if (spt_find_page(&thread_current()->spt, addr))
+        return NULL;
+
+    struct file *f = find_file_descriptor(fd)->file_p;
+    if (f == NULL)
+        return NULL;
+
+    if (file_length(f) == 0 || (int)length <= 0)
+        return NULL;
+
+    return do_mmap(addr, length, writable, f, offset); // 파일이 매핑된 가상 주소 반환
 }
 
 struct file_descriptor *find_file_descriptor(int fd) {
@@ -197,14 +234,15 @@ int write(int fd, void *buffer, unsigned length) {
 
 	int byte = 0;
 	if (fd == 0) {
-		return -1;
+		exit(-1);
 	} else if (fd == 1) {
 		putbuf(buffer, length);
 		byte = length;
 	} else { //표준 입출력이 아닐 때
 		lock_acquire(&file_lock);
 		struct file_descriptor *file_desc = find_file_descriptor(fd);
-		if (file_desc == NULL) return -1;
+		if (file_desc == NULL) 	
+			exit(-1);
 		byte = file_write(file_desc->file_p, buffer, length);
 		lock_release(&file_lock);
 	}
