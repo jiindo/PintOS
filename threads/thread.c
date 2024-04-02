@@ -232,7 +232,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 	t->fd_list = palloc_get_multiple(PAL_ZERO, 2);
-	if (NULL == t->fd_list)
+	if (t->fd_list == NULL)
 		return TID_ERROR;
 	if (thread_get_priority() < priority) {
 		thread_yield();
@@ -751,6 +751,13 @@ allocate_tid (void) {
 }
 
 #ifdef USERPROG
+int seek_the_fd(struct file_descriptor **fd_list){
+	for(int i = 2; i <= thread_current()->last_created_fd; i++){
+		if(fd_list[i] == NULL)
+			return i;
+	}
+	return thread_current()->last_created_fd++;
+}
 int
 allocate_fd(struct file *file, struct file_descriptor **fd_list) {
 	struct file_descriptor *file_descriptor;
@@ -762,7 +769,7 @@ allocate_fd(struct file *file, struct file_descriptor **fd_list) {
 		file_close(file);
         return -1;
     }
-	file_descriptor->fd = (thread_current()->last_created_fd)++;
+	file_descriptor->fd = thread_current()->last_created_fd++;//seek_the_fd(fd_list);
 	file_descriptor->file_p = file;
 	fd_list[file_descriptor->fd] = file_descriptor;
 	return file_descriptor->fd;

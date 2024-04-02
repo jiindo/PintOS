@@ -227,10 +227,8 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
-	lock_acquire(&file_lock);
 	/* And then load the binary */
 	success = load (file_name, &_if);
-	lock_release(&file_lock);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -258,9 +256,9 @@ process_exec (void *f_name) {
 int
 process_wait (tid_t child_tid UNUSED) {	
 	struct thread *child = find_child_by(child_tid);
-	if (TID_ERROR == child || !sema_try_down(&child->wait_sema))
+	if (TID_ERROR == child || !sema_try_down(&child->wait_sema)){
 		return -1;
-
+	}
 	sema_down(&child->wait_sema);
 	list_remove(&child->child_elem);
 	sema_up(&child->exit_sema); // 동기화를 위한 종료 세마포어
@@ -685,6 +683,35 @@ setup_stack (struct intr_frame *if_) {
 	}
 	return success;
 }
+// static bool
+// setup_stack(struct intr_frame *if_)
+// {
+// 	bool success = false;
+
+// 	// 스택은 아래로 성장하므로, USER_STACK에서 PGSIZE만큼 아래로 내린 지점에서 페이지를 생성한다.
+// 	void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
+
+// 	/* TODO: Map the stack on stack_bottom and claim the page immediately.
+// 	 * TODO: If success, set the rsp accordingly.
+// 	 * TODO: You should mark the page is stack. */
+// 	/* TODO: stack_bottom에 스택을 매핑하고 페이지를 즉시 요청하세요.
+// 	 * TODO: 성공하면, rsp를 그에 맞게 설정하세요.
+// 	 * TODO: 페이지가 스택임을 표시해야 합니다. */
+// 	/* TODO: Your code goes here */
+
+// 	// 1) stack_bottom에 페이지를 하나 할당받는다.
+// 	if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1))
+// 	// VM_MARKER_0: 스택이 저장된 메모리 페이지임을 식별하기 위해 추가
+// 	// writable: argument_stack()에서 값을 넣어야 하니 True
+// 	{
+// 		// 2) 할당 받은 페이지에 바로 물리 프레임을 매핑한다.
+// 		success = vm_claim_page(stack_bottom);
+// 		if (success)
+// 			// 3) rsp를 변경한다. (argument_stack에서 이 위치부터 인자를 push한다.)
+// 			if_->rsp = USER_STACK;
+// 	}
+// 	return success;
+// }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
  * virtual address KPAGE to the page table.
@@ -713,7 +740,7 @@ install_page (void *upage, void *kpage, bool writable) {
 // 처음 page fault가 발생할 때 호출
 // 물리 페이지 로딩만 해준다. -> lazy load이기 때문!
 // 인자로 들어오는 aux는 load_segment에서 넘어온 lazy_load_arg로, 읽어올 파일을 찾아 메모리에 적재한다.
-static bool lazy_load_segment (struct page *page, void *aux) {
+bool lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */

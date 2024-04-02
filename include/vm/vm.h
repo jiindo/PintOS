@@ -55,6 +55,8 @@ struct page {
 	//writable 필드를 추가한다. -> vm_alloc_page_with_initializer
 	bool writable;
 
+	int mapped_page_count;
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
