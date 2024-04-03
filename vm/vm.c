@@ -111,13 +111,14 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 	struct hash_elem *e;
 
 	// va가 가리키는 가상 페이지의 시작 지점을 va에 저장한다.
-	// 해시 테이블에서 va에 해당하는 페이지를 찾는다.
 	page->va = pg_round_down(va);
 
+	// 해시 테이블에서 va에 해당하는 페이지를 찾는다.
 	e = hash_find(&spt->spt_hash, &page->hash_elem);
 
 	free(page);
 
+	// 찾은 페이지를 반환한다.
 	if(e == NULL){
 		return NULL;
 	}
@@ -125,10 +126,6 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 	page = hash_entry(e, struct page, hash_elem);
 
 	return page;
-	// e = hash_find(&spt->spt_hash, &page->hash_elem);
-
-	// // 찾은 페이지를 반환한다.
-	// return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
 }
 
 // SPT에 페이지를 삽입한다.
