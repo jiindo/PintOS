@@ -751,6 +751,20 @@ allocate_tid (void) {
 }
 
 #ifdef USERPROG
+// struct file_descriptor *find_file_descriptor(int fd, struct file_descriptor **fd_list){
+// 	if(fd < 2 || fd >= FD_CNT_LIMIT)
+// 		return NULL;
+// 	return fd_list[fd];
+// }
+
+int seek_the_fd(struct file_descriptor **fd_list){
+	for(int i = 2; i <= thread_current()->last_created_fd; i++){
+		if(fd_list[i] == NULL)
+			return i;
+	}
+	return thread_current()->last_created_fd++;
+}
+
 int
 allocate_fd(struct file *file, struct file_descriptor **fd_list) {
 	struct file_descriptor *file_descriptor;
@@ -762,7 +776,7 @@ allocate_fd(struct file *file, struct file_descriptor **fd_list) {
 		file_close(file);
         return -1;
     }
-	file_descriptor->fd = (thread_current()->last_created_fd)++;
+	file_descriptor->fd = thread_current()->last_created_fd++;//seek_the_fd(fd_list);
 	file_descriptor->file_p = file;
 	fd_list[file_descriptor->fd] = file_descriptor;
 	return file_descriptor->fd;

@@ -227,10 +227,10 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
-	lock_acquire(&file_lock);
+	
 	/* And then load the binary */
 	success = load (file_name, &_if);
-	lock_release(&file_lock);
+	
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -713,7 +713,7 @@ install_page (void *upage, void *kpage, bool writable) {
 // 처음 page fault가 발생할 때 호출
 // 물리 페이지 로딩만 해준다. -> lazy load이기 때문!
 // 인자로 들어오는 aux는 load_segment에서 넘어온 lazy_load_arg로, 읽어올 파일을 찾아 메모리에 적재한다.
-static bool lazy_load_segment (struct page *page, void *aux) {
+bool lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
@@ -747,8 +747,7 @@ static bool lazy_load_segment (struct page *page, void *aux) {
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
-static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
+static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
@@ -766,7 +765,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		// vm_alloc_page_with_initializer에 제공할 aux 인수로 필요한 보조 값들을 설정해야 한다.
-		// loading을 위해 필요한 정보를 포함하는 구조체를 만들어야 한다.
 		struct lazy_load_arg *lazy_load_arg = (struct lazy_load_arg *)malloc(sizeof(struct lazy_load_arg));
 		lazy_load_arg->file = file;
 		lazy_load_arg->ofs = ofs;
